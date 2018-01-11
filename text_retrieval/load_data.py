@@ -1,10 +1,5 @@
 
 
-"""
-Needs to replace .replace("\u200f", "")
-
-
-"""
 
 from bs4 import BeautifulSoup
 import glob
