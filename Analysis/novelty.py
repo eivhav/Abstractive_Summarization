@@ -6,22 +6,26 @@ for f in files:
     d = json.load(open(f))
     for k in d.keys(): data[k] = d[k]
 
-def compute_3_grams(text):
-    return  {text[i] + "_"+text[i+1] + "_" + text[i+2]: True for i in range(len(text) -2)}
+def compute_n_grams(text, n):
+    return {"_".join([text[i+k] for k in range(n)]): True for i in range(len(text) -n)}
 
-def compute_novelty(summary, text_content):
-    text_3_grams = compute_3_grams(text_content)
-    summary_3_grams = compute_3_grams(summary)
-    overlapp = [tri_gram for tri_gram in summary_3_grams if tri_gram in text_3_grams]
-    return 1 - (len(overlapp) / len(summary_3_grams))
+def compute_novelty(summary, text_content, n_gram_n):
+    text_n_grams = compute_n_grams(text_content.split(" "), n_gram_n)
+    summary_n_grams = compute_n_grams(summary.split(" "), n_gram_n)
+    overlapp = [tri_gram for tri_gram in summary_n_grams if tri_gram in text_n_grams]
+    if len(summary_n_grams) == 0: return -1
+    return 1 - (len(overlapp) / len(summary_n_grams))
 
 count = 0
 total = 0
+nov_dist = [0] * 12
 for d in data:
     count += 1
-    novelty = compute_novelty(data[d]['tok_summary_items'], data[d]['tok_text_content'])
+    novelty = compute_novelty(data[d]['tok_summary_items'], data[d]['tok_text_content'], n_gram_n= 2)
+    if novelty == -1: continue
     total += novelty
-    if novelty > 1.1:
+    nov_dist[int(novelty*10)] += 1
+    if novelty > 0.8 and True:
         print(novelty)
         s_items = data[d]['tok_summary_items'].split(".")
         for s in s_items: print("*", s)
@@ -29,7 +33,7 @@ for d in data:
         for s in t_items: print(s)
         print()
 
-    if count % 2000 == 0: print(count)
+    if count % 2000 == 0: print(count, total/count)
 
 print(total/count)
 
