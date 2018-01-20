@@ -1,21 +1,21 @@
 from __future__ import unicode_literals, print_function, division
 
-import random
 import time
-import math
-import Pytorch_seq2seq.data_prepare as data_prepare
-import Pytorch_seq2seq.seq2seq_model as models
-
 import torch
 import torch.nn as nn
 from torch.autograd import Variable
 from torch import optim
 import torch.nn.functional as F
+import pickle
 
 use_cuda = torch.cuda.is_available()
+from Pytorch_seq2seq.data_loader import *
+data_path = '/home/havikbot/MasterThesis/Data/CNN_dailyMail/DailyMail/model_datasets/'
 
-#input_lang, output_lang, pairs = data_prepare.prepareData(data_prepare.load_dailyMail())
-#print(random.choice(pairs))
+
+with open(data_path +'DM_25k.pickle', 'rb') as f:
+    dataset = pickle.load(f)
+
 
 
 
@@ -25,6 +25,7 @@ class EncoderRNN(nn.Module):
         self.hidden_size = hidden_size
 
         self.embedding = nn.Embedding(vocab_size, hidden_size, padding_idx=0)
+
         self.gru = nn.GRU(hidden_size, hidden_size, bidirectional=True, batch_first=True)
 
     def forward(self, input, hidden):
@@ -41,7 +42,7 @@ class EncoderRNN(nn.Module):
 
 class AttnDecoderRNN(nn.Module):
     def __init__(self, hidden_size, embedding_size, vocab_size,
-                 n_layers=1, dropout_p=0.1, encoder_max_length=100, decoder_max_length=100):
+                 n_layers=1, dropout_p=0.1, encoder_max_length=100, decoder_max_length=100, embedding_weight=None):
         super(AttnDecoderRNN, self).__init__()
         # Parameters
         self.hidden_size = hidden_size
@@ -63,8 +64,14 @@ class AttnDecoderRNN(nn.Module):
 
         # Generator
         self.gen_layer = nn.Linear(self.hidden_size*2 + self.embedding_size, 1)
-        self.out_hidden = nn.Linear(self.hidden_size*2, self.hidden_size)
-        self.out_vocab = nn.Linear(self.hidden_size, vocab_size)
+        self.out_hidden = nn.Linear(self.hidden_size*2, self.embedding_size)
+        self.out_vocab = nn.Linear(self.embedding_size, vocab_size)
+
+        # Weight_sharing
+        if embedding_weight is not None:
+            self.out_vocab.weight = embedding_weight
+
+
 
     def forward(self, input_token, last_decoder_hidden, encoder_states):
         embedded_input= self.embedding(input_token)
@@ -82,7 +89,7 @@ class AttnDecoderRNN(nn.Module):
 
         p_gen = F.sigmoid(self.gen_layer(torch.cat((decoder_context, torch.squeeze(embedded_input, 1)), 1)))
 
-        return decoder_hidden, p_gen, p_vocab, att_dist
+        return decoder_hidden.squeeze(0), p_gen, p_vocab, att_dist
 
     def init_hidden(self):
         result = Variable(torch.zeros(1, 1, self.hidden_size))
@@ -90,68 +97,77 @@ class AttnDecoderRNN(nn.Module):
         else: return result
 
 
+SOS_token = 1
+EOS_token = 2
+UNK_token = 3
+
+batch_size = 32
 embedding_size = 128
 hidden_size = 256
-encoder = EncoderRNN(input_lang.n_words, hidden_size=embedding_size)
+input_length = 200
+target_length = 30
+vocab_size = len(dataset.vocab.word2index)
+training_pairs = dataset.summary_pairs[0:int(len(dataset.summary_pairs)*0.8)]
+test_pairs = dataset.summary_pairs[int(len(dataset.summary_pairs)*0.8):]
 
-decoder = AttnDecoderRNN(hidden_size, embedding_size, output_lang.n_words, 1, dropout_p=0.1)
+encoder = EncoderRNN(vocab_size, hidden_size=embedding_size)
+emb_w = encoder.embedding.weight
+decoder = AttnDecoderRNN(hidden_size, embedding_size, vocab_size, 1, dropout_p=0.1, embedding_weight=emb_w)
 
 learning_rate=0.01
 encoder_optimizer = optim.SGD(encoder.parameters(), lr=learning_rate)
 decoder_optimizer = optim.SGD(decoder.parameters(), lr=learning_rate)
-
-
-training_pairs = [data_prepare.variablesFromPair(pairs[i], input_lang, output_lang) for i in range(50)]
 criterion = nn.NLLLoss()
-
-batch_size = 32
-input_batch = training_pairs[:batch_size]
-
-
-input_length = 100
-input_variable = Variable(torch.LongTensor(batch_size, input_length))
-for b in range(batch_size):
-    for i in range(len(input_batch[b][0])): input_variable[b, i] = input_batch[b][0][i]
-    for i in range(input_length - len(input_batch[b][0])): input_variable[b, input_length-i-1] = 0
-
-
-
 teacher_forcing_ratio = 0.5
-encoder_hidden = encoder.initHidden()
-
-encoder_optimizer.zero_grad()
-decoder_optimizer.zero_grad()
-
-target_length = 30
-input_length = 100
-encoder_outputs = Variable(torch.zeros(input_length, encoder.hidden_size))
-encoder_outputs = encoder_outputs.cuda() if use_cuda else encoder_outputs
-
-loss = 0
-
-encoder_outputs, encoder_hidden = encoder(input_variable, encoder_hidden)
-
-SOS_token = 1
-EOS_token = 2
-
-decoder_input = Variable(torch.LongTensor([[SOS_token] for i in range(batch_size)]))
-decoder_hidden = torch.cat((encoder_hidden[0], encoder_hidden[1]), -1)
 
 
+def train_batch(batch_nb):
 
-# Teacher forcing: Feed the target as the next input
-for di in range(target_length):
-    decoder_hidden, p_gen, p_vocab, attention_dist = decoder(decoder_input, decoder_hidden, encoder_outputs)
-    p_final = p_gen * p_vocab
-    #decoder_output = target_variable[di] # perfrom beam search
-    #loss += criterion(decoder_output, target_variable[di])
-    #decoder_input = target_variable[di]  # Teacher forcing
-    break
+    input_batch = [pair.source_idx_tokens + [EOS_token] for pair in training_pairs[batch_size*batch_nb:batch_size*(batch_nb+1)]]
+    target_batch = [pair.target_idx_tokens + [EOS_token] for pair in training_pairs[batch_size*batch_nb:batch_size*(batch_nb+1)]]
 
-#loss.backward()
+    input_variable = Variable(torch.LongTensor([[0]*input_length for i in input_batch]))
+    full_input_variable = Variable(torch.LongTensor([[0]*input_length for i in input_batch]))
+    target_variable = Variable(torch.LongTensor([[0]*target_length for i in target_batch]))
+    output_variable = Variable(torch.LongTensor([[0]*target_length for i in target_batch]))
 
-encoder_optimizer.step()
-decoder_optimizer.step()
+    for b in range(batch_size):
+        for i in range(min(len(input_batch[b]), input_length)):
+            full_input_variable[b, i] = input_batch[b][i]
+            if input_batch[b][i] >= vocab_size: input_variable[b, i] = UNK_token
+            else: input_variable[b, i] = input_batch[b][i]
+        for i in range(min(len(target_batch[b]), target_length)):
+            target_variable[b, i] = target_batch[b][i]
+            if target_batch[b][i] >= vocab_size: output_variable[b, i] = UNK_token
+            else: output_variable[b, i] = target_batch[b][i]
 
-#print(loss.data[0])
+    encoder_hidden = encoder.initHidden()
+    encoder_optimizer.zero_grad()
+    decoder_optimizer.zero_grad()
 
+    loss = 0
+
+    encoder_outputs, encoder_hidden = encoder(input_variable, encoder_hidden)
+
+    decoder_input = Variable(torch.LongTensor([[SOS_token] for i in range(batch_size)]))
+    decoder_hidden = torch.cat((encoder_hidden[0], encoder_hidden[1]), -1)
+
+    for token_i in range(target_length):
+        decoder_hidden, p_gen, p_vocab, attention_dist = decoder(decoder_input, decoder_hidden, encoder_outputs)
+
+        token_input_dist = Variable(torch.zeros((batch_size, vocab_size+250)))
+        token_input_dist.scatter_add_(1, full_input_variable, attention_dist)
+
+        p_final = torch.cat((p_vocab * p_gen, Variable(torch.zeros(batch_size, 250))), 1) + (1-p_gen) * token_input_dist
+        loss += criterion(p_final, target_variable.narrow(1, token_i, 1).squeeze(-1))
+        decoder_input = output_variable.narrow(1, token_i, 1) # Teacher forcing
+
+    loss.backward()
+
+    encoder_optimizer.step()
+    decoder_optimizer.step()
+
+    print("Batch", batch_nb,"Loss", loss.data[0])
+
+
+for i in range(1000): train_batch(i)
