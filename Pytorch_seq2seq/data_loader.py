@@ -9,6 +9,7 @@ import operator
 PAD_token = 0
 SOS_token = 1
 EOS_token = 2
+UNK_token = 3
 
 # Need to remove \xa0 string = string.replace(u'\xa0', u' ')
 # new_str = unicodedata.normalize("NFKD", unicode_str)
@@ -28,27 +29,31 @@ class TextPair:
     def __init__(self, source_text, target_text, limit, vocab):
         self.source_text = source_text
         self.target_text = target_text
-        self.source_idx_tokens = []
-        self.target_idx_tokens = []
+        self.full_source_tokens = []
+        self.masked_source_tokens = []
+        self.full_target_tokens = []
+        self.masked_target_tokens = []
         self.unknown_tokens = dict()
 
-        self.add_sentence(source_text, self.source_idx_tokens, vocab)
-        self.add_sentence(target_text, self.target_idx_tokens, vocab)
+        self.add_sentence(source_text, (self.full_source_tokens, self.masked_source_tokens), vocab)
+        self.add_sentence(target_text, (self.full_target_tokens, self.masked_target_tokens), vocab)
 
     def add_sentence(self, sentence, destination, vocab):
         for w in sentence.split(" "):
             try:
-                if w in vocab.word2index: destination.append(vocab.word2index[w])
+                if w in vocab.word2index:
+                    destination[0].append(vocab.word2index[w])
+                    destination[1].append(vocab.word2index[w])
                 else:
                     if w not in self.unknown_tokens:
                         self.unknown_tokens[w] = len(vocab.index2word) + len(self.unknown_tokens)
-                    destination.append(self.unknown_tokens[w])
-
-
+                    destination[0].append(self.unknown_tokens[w])
+                    destination[1].append(UNK_token)
             except:
-                #print(w)
+                print("FAILED FOR WORD", w)
                 continue
-        destination.append(EOS_token)
+        destination[0].append(EOS_token)
+        destination[1].append(EOS_token)
 
 
 class DataSet:
@@ -82,7 +87,6 @@ class DataSet:
             for w in pair[1].split(" "): self.add_word(w, vocab)
         words = [(w, vocab.word2count[w]) for w in vocab.word2count.keys()]
         words = sorted(words, key=lambda tup: tup[1], reverse=True)
-        print(words)
 
         if len(words) > limit: words = words[:limit]
         for w in words:
@@ -91,8 +95,6 @@ class DataSet:
             vocab.word2index[w[0]] = index
 
         return vocab
-
-
 
 
 
@@ -109,29 +111,25 @@ def load_data(file_path, source_field, target_field):
 
     for el in data.keys():
         count += 1
-        text_pairs.append([data[el][source_field].lower().replace("\u200f", ""),
-                            data[el][target_field].lower().replace("\u200f", "")])
+        text_pairs.append([unicodedata.normalize("NFKD", data[el][source_field].lower()),
+                           unicodedata.normalize("NFKD", data[el][target_field].lower())])
         #if count % 1000 == 0: print(count)
     return text_pairs
 
 
-
-def indexesFromSentence(lang, sentence):
-    return [lang.word2index[word] for word in sentence.split(' ')]
-
-
-def variableFromSentence(lang, sentence):
-    indexes = indexesFromSentence(lang, sentence)
-    indexes.append(EOS_token)
-    result = indexes
-    return result
-
-
-def variablesFromPair(pair, input_lang, output_lang):
-    input_variable = variableFromSentence(input_lang, pair[0])
-    target_variable = variableFromSentence(output_lang, pair[1])
-    return (input_variable, target_variable)
-
 path = '/home/havikbot/MasterThesis/Data/CNN_dailyMail/DailyMail/tokenized4/'+"*.txt"
-dataset = DataSet('DailyMail')
-#dataset.create_dataset(path, 'tok_text_content', 'tok_headline', 25000)
+out_path = '/home/havikbot/MasterThesis/Data/CNN_dailyMail/DailyMail/model_datasets/'
+
+dataset = DataSet('DM')
+
+def create_and_save_dataset(dataset):
+    dataset = DataSet('DailyMail_summary')
+    dataset.create_dataset(path, 'tok_text_content', 'tok_summary_items', 25000)
+    out_path = '/home/havikbot/MasterThesis/Data/CNN_dailyMail/DailyMail/model_datasets/'
+
+    import pickle
+    with open(out_path + 'DM_25k_summary.pickle', 'wb') as handle:
+        pickle.dump(dataset, handle, protocol=pickle.HIGHEST_PROTOCOL)
+
+
+
