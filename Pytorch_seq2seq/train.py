@@ -132,6 +132,7 @@ def zero_pad(tokens, len_limit):
 def train_batch(batch_nb):
     last = time.time()
 
+
     input_batch = [pair for pair in training_pairs[batch_size*batch_nb:batch_size*(batch_nb+1)]]
     target_batch = [pair for pair in training_pairs[batch_size*batch_nb:batch_size*(batch_nb+1)]]
 
@@ -157,30 +158,39 @@ def train_batch(batch_nb):
     if use_cuda: decoder_input = decoder_input.cuda()
     decoder_hidden = torch.cat((encoder_hidden[0], encoder_hidden[1]), -1)
 
+    cuda_time = 0
     for token_i in range(target_length):
         decoder_hidden, p_gen, p_vocab, attention_dist = decoder(decoder_input, decoder_hidden, encoder_outputs)
 
         token_input_dist = Variable(torch.zeros((batch_size, vocab_size+250)))
         padding_matrix = Variable(torch.zeros(batch_size, 250))
 
+        last_2 = time.time()
         if use_cuda:
             token_input_dist = token_input_dist.cuda()
+            cuda_time += time.time() - last_2
             padding_matrix = padding_matrix.cuda()
 
         token_input_dist.scatter_add_(1, full_input_variable, attention_dist)
-
         p_final = torch.cat((p_vocab * p_gen, padding_matrix), 1) + (1-p_gen) * token_input_dist
         loss += criterion(F.log_softmax(p_final, dim=1), full_target_variable.narrow(1, token_i, 1).squeeze(-1))
         decoder_input = target_variable.narrow(1, token_i, 1) # Teacher forcing
 
+    print(cuda_time)
+    last_optm = time.time()
 
     loss.backward()
     encoder_optimizer.step()
     decoder_optimizer.step()
 
+    print("optm", time.time() - last_optm)
+
     print("Batch", batch_nb,"Loss", loss.data[0], 'time', time.time() - last)
+    print()
 
 
 
 for i in range(10000):
     train_batch(i)
+
+
