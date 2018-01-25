@@ -51,7 +51,7 @@ criterion = nn.NLLLoss()
 def train_batch(samples, encoder, decoder, input_length, target_length, use_cuda):
 
     input_variable, full_input_variable, target_variable, full_target_variable, decoder_input = \
-        utils.get_batch_variables(samples, input_length, target_length, use_cuda)
+        utils.get_batch_variables(samples, input_length, target_length, use_cuda, SOS_token)
 
     encoder_hidden = encoder.init_hidden(len(samples), use_cuda)
     encoder_optimizer.zero_grad()
@@ -76,21 +76,42 @@ def train_batch(samples, encoder, decoder, input_length, target_length, use_cuda
     return loss.data[0] / target_length
 
 
+def predict(samples, encoder, decoder, input_length, target_length, use_cuda, beam_width, vocab):
+    input_variable, full_input_variable, target_variable, full_target_variable, decoder_input = \
+        utils.get_batch_variables(samples, input_length, target_length, use_cuda, SOS_token)
+    encoder_hidden = encoder.init_hidden(len(samples), use_cuda)
+
+    encoder_outputs, encoder_hidden = encoder(input_variable, encoder_hidden)
+    decoder_hidden = torch.cat((encoder_hidden[0], encoder_hidden[1]), -1)
+
+    result = []
+    for token_i in range(target_length):
+
+        decoder_hidden, p_final, p_gen, p_vocab, attention_dist = \
+            decoder(decoder_input, decoder_hidden, encoder_outputs, full_input_variable)
+
+        if not beam_width:
+            p_vocab_word, vocab_word_idx = p_vocab.max(1)
+            result.append([{'token_idx': vocab_word_idx.data[i],
+                            'word': utils.translate_word(vocab_word_idx, vocab, vocab_word_idx.data[i])}
+                                for i in range(len(samples))])
+            decoder_input = target_variable.narrow(1, token_i, 1) # Teacher forcing
+        else:
+            pass
+            # conduct beam search
 
 
-
-nb_epochs = 20
-for e in range(nb_epochs):
-
-    epoch_loss = 0
-    for b in range(int(len(training_pairs)/batch_size)):
-        batch = training_pairs[b*batch_size:(b+1)*batch_size]
-        epoch_loss += train_batch(b, batch)
-        if b % 50 == 0:
-            print(b*batch_size, '/', len(training_pairs), "loss:", epoch_loss/ (b+1))
-            sample = b*batch_size
-            test_result, gen_seq = utils.predict_and_print(training_pairs[sample])
-            print(gen_seq)
+def train_model(nb_epochs, encoder):
+    for e in range(nb_epochs):
+        epoch_loss = 0
+        for b in range(int(len(training_pairs)/batch_size)):
+            batch = training_pairs[b*batch_size:(b+1)*batch_size]
+            epoch_loss += train_batch(batch, encoder, decoder, input_length, target_length, use_cuda)
+            if b % 50 == 0:
+                print(b*batch_size, '/', len(training_pairs), "loss:", epoch_loss/ (b+1))
+                sample = b*batch_size
+                test_result, gen_seq = utils.predict_and_print(training_pairs[sample])
+                print(gen_seq)
 
 
 

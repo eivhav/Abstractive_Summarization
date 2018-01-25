@@ -64,15 +64,14 @@ def progress_bar(fraction, e):
     sys.stdout.flush()
 
 
-def translate_word(token, text_pair, vocab, UNK_token):
-    print(token)
+def translate_word(token, text_pair, vocab):
     if token in vocab.index2word: return vocab.index2word[token]
     if token in text_pair.unknown_tokens.values():
         return [k for k in text_pair.unknown_tokens if text_pair.unknown_tokens[k] == token][0]
-    return UNK_token
+    return 3
 
 
-def predict_and_print(pair, encoder, decoder, input_length, target_length, SOS_token, vocab, use_cuda):
+def predict_and_print(pair, encoder, decoder, input_length, target_length, SOS_token, vocab, use_cuda, UNK_token):
     print(pair.target_text)
 
     input_variable, full_input_variable, _, _, decoder_input = \
@@ -103,7 +102,7 @@ def predict_and_print(pair, encoder, decoder, input_length, target_length, SOS_t
         '''
         p_vocab_word, vocab_word_idx = p_vocab.max(1)
 
-        gen_sequence.append((translate_word(vocab_word_idx.data[0], pair, vocab, ), round(p_vocab_word.data[0], 3)))
+        gen_sequence.append((translate_word(vocab_word_idx.data[0], pair, vocab), round(p_vocab_word.data[0], 3)))
 
     return result, gen_sequence
 
