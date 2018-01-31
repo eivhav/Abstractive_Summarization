@@ -7,7 +7,7 @@ path = '/home/havikbot/MasterThesis/Data/CNN_dailyMail/DailyMail/'
 out_path = '/home/havikbot/MasterThesis/Data/CNN_dailyMail/extracted/'
 path_toshiba = '/media/havikbot/TOSHIBA EXT/MasterThesis/Data/dailymail/downloads/'
 import re
-
+unicodedata.normalize("NFKD", unicode_str)
 
 def unicode_to_ascii(s): return ''.join(c for c in unicodedata.normalize('NFD', s) if unicodedata.category(c) != 'Mn')
 

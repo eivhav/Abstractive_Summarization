@@ -12,7 +12,6 @@ def zero_pad(tokens, len_limit):
     if len(tokens) < len_limit: return tokens + [0] * (len_limit - len(tokens))
     else: return tokens[:len_limit]
 
-
 def print_attention_dist(text_pair, vocab, att_dist):
     attentions = []
     for i in range(min(len(att_dist), len(text_pair.full_source_tokens))):
@@ -55,13 +54,28 @@ def get_batch_variables(samples, input_length, target_length, use_cuda, SOS_toke
     else:
         return input_variable, full_input_variable, target_variable, full_target_variable, decoder_input
 
+class TrainingLogger():
+    def __init__(self):
+        self.epoch_nb = 0
+        self.epoch_time = 0
+        self.epoch_loss = 0
 
-def progress_bar(fraction, e):
-    sys.stdout.write('\r')
-    sys.stdout.write("[%-60s] %d%%" % ('='*int((60*(e+1)/10)), (100*(e+1)/10)))
-    sys.stdout.flush()
-    sys.stdout.write(", epoch %d" % (e+1))
-    sys.stdout.flush()
+    def add_iteration(self, step, loss, _time):
+        pass
+
+    def init_epoch(self, e, nb_epochs):
+        self.epoch_time = 0
+        self.epoch_loss = 0
+
+    def progress_bar(self, fraction, e):
+        sys.stdout.write('\r')
+        sys.stdout.write("[%-60s] %d%%" % ('='*int((60*(e+1)/10)), (100*(e+1)/10)))
+        sys.stdout.flush()
+        sys.stdout.write(", epoch %d" % (e+1))
+        sys.stdout.flush()
+
+
+
 
 
 def translate_word(token, text_pair, vocab):
