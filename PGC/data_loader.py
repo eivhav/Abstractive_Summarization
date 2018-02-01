@@ -17,10 +17,11 @@ UNK_token = 3
 
 class Vocab:
     def __init__(self, limit):
-        self.word2index = {}
-        self.word2count = {}
         self.index2word = {0: "PAD", 1: "SOS", 2: "EOS", 3: "UNK"}
+        self.word2index = {self.index2word[k]: k for k in self.index2word}
+        self.word2count = {}
         self.n_words = 4  # Count SOS and EOS
+        self.vocab_size = 0
         self.vocab_incl_size = len(self.index2word) + limit
 
 
@@ -94,6 +95,8 @@ class DataSet:
             vocab.index2word[index] = w[0]
             vocab.word2index[w[0]] = index
 
+        vocab.vocab_size = len(vocab.index2word)
+
         return vocab
 
 
@@ -128,7 +131,7 @@ def create_and_save_dataset(dataset):
     out_path = '/home/havikbot/MasterThesis/Data/CNN_dailyMail/DailyMail/model_datasets/'
 
     import pickle
-    with open(out_path + 'DM_25k_summary.pickle', 'wb') as handle:
+    with open(out_path + 'DM_25k_summary_v2.pickle', 'wb') as handle:
         pickle.dump(dataset, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 

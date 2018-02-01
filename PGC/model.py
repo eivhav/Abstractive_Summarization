@@ -7,6 +7,7 @@ import torch.nn.functional as F
 import time
 import random
 import PGC.utils as utils
+import shutil
 
 
 class EncoderRNN(nn.Module):
@@ -56,6 +57,7 @@ class AttnDecoderRNN(nn.Module):
             self.out_vocab.weight = embedding_weight
 
     def forward(self, input_token, last_decoder_hidden, encoder_states, full_input_var, use_cuda):
+        #print(input_token, last_decoder_hidden, encoder_states, full_input_var, use_cuda)
         embedded_input = self.embedding(input_token)
         embedded_input = self.dropout(embedded_input)
         decoder_output, decoder_hidden = self.gru(embedded_input, torch.unsqueeze(last_decoder_hidden, 0))
@@ -97,48 +99,60 @@ class AttnDecoderRNN(nn.Module):
 
 
 class PGCModel():
-    def __init__(self, config, vocab, use_cuda):
-        self.use_cuda = True
+    def __init__(self, config, vocab, model_id, model_path, use_cuda):
+        self.use_cuda = use_cuda
         self.config = config
         self.vocab = vocab
-        self.vocab_size = len(vocab.index2word)
+        self.model_id = model_id
+        self.model_path = model_path
 
-        self.SOS_token = 1
-        self.EOS_token = 2
-        self.UNK_token = 3
+        self.embedding_size = config['embedding_size']
+        self.hidden_size = config['hidden_size']
+        self.input_length = config['input_length']
+        self.target_length = config['target_length']
 
-        self.embedding_size = 128
-        self.hidden_size = 256
-        self.input_length = 300
-        self.target_length = 40
-
-        self.encoder = EncoderRNN(self.vocab_size, hidden_size=self.embedding_size)
+        self.encoder = EncoderRNN(self.vocab.vocab_size, hidden_size=self.embedding_size)
         self.emb_w = self.encoder.embedding.weight # use weight sharing?
-        self.decoder = AttnDecoderRNN(self.hidden_size, self.embedding_size, self.vocab_size, 1,
+        self.decoder = AttnDecoderRNN(self.hidden_size, self.embedding_size, self.vocab.vocab_size, 1,
                                         dropout_p=0.1, embedding_weight=None)
         self.encoder_optimizer = None
         self.decoder_optimizer = None
         self.criterion = None
+        self.logger = None
+        print("Model compiled")
 
-    def train(self, data, val_data, nb_epochs, batch_size, optimizer, lr, tf_ratio, stop_criterion, use_cuda):
 
-        self.encoder_optimizer = optimizer(self.encoder.parameters(), lr= lr, weight_decay=0.0000001)
-        self.decoder_optimizer = optimizer(self.decoder.parameters(), lr= lr, weight_decay=0.0000001)
-        self.criterion = nn.NLLLoss()
-        logger = utils.TrainingLogger()
+    def train(self, data, val_data, nb_epochs, batch_size, optimizer, lr, tf_ratio, stop_criterion, use_cuda, _print):
 
-        for epoch in range(nb_epochs):
+        if self.logger is None:
+            self.encoder_optimizer = optimizer(self.encoder.parameters(), lr= lr, weight_decay=0.0000001)
+            self.decoder_optimizer = optimizer(self.decoder.parameters(), lr= lr, weight_decay=0.0000001)
+            self.criterion = nn.NLLLoss()
+            self.logger = utils.TrainingLogger(nb_epochs, batch_size, len(data))
+            print("Optimizers compiled")
+
+        for epoch in range(len(self.logger.log), nb_epochs):
             random.shuffle(data)
-            logger.init_epoch(epoch, nb_epochs)
+            self.logger.init_epoch(epoch)
             for b in range(int(len(data)/batch_size)):
                 loss, _time = self.train_batch(samples=data[b*batch_size:(b+1)*batch_size], use_cuda=self.use_cuda)
-                logger.add_iteration(b, loss, _time)
+                self.logger.add_iteration(b+1, loss, _time)
+                if b % 200 == 0 and _print:
+                    print('\n', [(t[0]['word'], t[0]['p_gen']) for t in self.predict([data[b*batch_size]], 30, False, self.use_cuda)])
+
+            for b in range(int(len(data)/batch_size)):
+                loss, _time = self.train_batch(val_data[b*batch_size:(b+1)*batch_size], self.use_cuda, backprop=False)
+                self.logger.add_val_iteration(b+1, loss, _time)
+
+            if epoch == 0 or self.logger.log[epoch]["val_loss"] < self.logger.log[epoch-1]["val_loss"]:
+                self.save_model(self.model_path, self.model_id, epoch=epoch, loss=self.logger.log[epoch]["val_loss"])
 
 
-    def train_batch(self, samples, use_cuda):
+    def train_batch(self, samples, use_cuda, tf_ratio=0.5, backprop=True):
         start = time.time()
         input_variable, full_input_variable, target_variable, full_target_variable, decoder_input = \
-            utils.get_batch_variables(samples, self.input_length, self.target_length, use_cuda, self.SOS_token)
+            utils.get_batch_variables(samples, self.input_length, self.target_length, use_cuda,
+                                      self.vocab.word2index['SOS'])
 
         encoder_hidden = self.encoder.init_hidden(len(samples), use_cuda)
         self.encoder_optimizer.zero_grad()
@@ -152,18 +166,27 @@ class PGCModel():
             decoder_hidden, p_final, p_gen, p_vocab, attention_dist = \
                 self.decoder(decoder_input, decoder_hidden, encoder_outputs, full_input_variable, use_cuda)
             loss += self.criterion(torch.log(p_final.clamp(min=1e-8)), full_target_variable.narrow(1, token_i, 1).squeeze(-1))
-            decoder_input = target_variable.narrow(1, token_i, 1) # Teacher forcing
 
-        loss.backward()
-        self.encoder_optimizer.step()
-        self.decoder_optimizer.step()
+            if random.uniform(0, 1) < tf_ratio: decoder_input = target_variable.narrow(1, token_i, 1)
+            else:
+                _, max_tokens = p_final.max(1)
+                for i in range(max_tokens.size()[0]):
+                    if max_tokens.data[i] >= self.vocab.vocab_size: max_tokens.data[i] = self.vocab.word2index['UNK']
+                decoder_input = max_tokens.unsqueeze(1)
+
+        if backprop:
+            loss.backward()
+            self.encoder_optimizer.step()
+            self.decoder_optimizer.step()
 
         return loss.data[0] / self.target_length, time.time() - start
 
 
-    def predict(self, samples, target_length, beam_size, use_cuda):
+
+    def predict(self, samples, target_length, beam_size, use_cuda): # this only works with one sample at a time
         input_variable, full_input_variable, target_variable, full_target_variable, decoder_input = \
-            utils.get_batch_variables(samples, self.input_length, target_length, use_cuda, self.SOS_token)
+            utils.get_batch_variables(samples, self.input_length, target_length, use_cuda,
+                                      self.vocab.word2index['SOS'])
         encoder_hidden = self.encoder.init_hidden(len(samples), use_cuda)
 
         encoder_outputs, encoder_hidden = self.encoder(input_variable, encoder_hidden)
@@ -181,16 +204,31 @@ class PGCModel():
                                 'word': utils.translate_word(vocab_word_idx.data[i], samples[i], self.vocab),
                                 'p_gen': round(p_gen.data[i][0], 3)}
                                     for i in range(len(samples))])
-                decoder_input = torch.unsqueeze(vocab_word_idx, 1)
+                _, max_tokens = p_final.max(1)
+                for i in range(max_tokens.size()[0]):
+                    if max_tokens.data[i] >= self.vocab.vocab_size: max_tokens.data[i] = self.vocab.word2index['UNK']
+                decoder_input = max_tokens.unsqueeze(1)
 
-                #decoder_input = target_variable.narrow(1, token_i, 1) # Teacher forcing
             else:
                 pass
                 # conduct beam search
         return result
 
+    def save_model(self, path, id, epoch, loss):
+        data = {
+            'epoch': epoch + 1,
+            'best_prec1': loss,
+            'vocab': self.vocab,
+            'config': self.config,
+            'logger': self.logger,
+            'encoder': self.encoder.state_dict(), 'decoder': self.decoder.state_dict(),
+            'encoder_optm': self.encoder_optimizer.state_dict(),'decoder_optm': self.decoder_optimizer.state_dict()
+        }
+        filename= path + "checkpoint_" + id + "_ep@" + epoch
+        torch.save(data, filename)
 
-
+    def load_model(self, path, id):
+        pass
 
 
 

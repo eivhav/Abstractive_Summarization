@@ -55,23 +55,42 @@ def get_batch_variables(samples, input_length, target_length, use_cuda, SOS_toke
         return input_variable, full_input_variable, target_variable, full_target_variable, decoder_input
 
 class TrainingLogger():
-    def __init__(self):
+    def __init__(self, nb_epochs, batch_size, sample_size):
         self.epoch_nb = 0
-        self.epoch_time = 0
-        self.epoch_loss = 0
+        self.log = dict()
+        self.batch_size = batch_size
+        self.nb_epochs = nb_epochs
+        self.epoch_size = sample_size
+
 
     def add_iteration(self, step, loss, _time):
-        pass
+        self.log[self.epoch_nb]["loss"] += loss
+        self.log[self.epoch_nb]["time"] += _time
+        predicted_time = ((self.epoch_size / self.batch_size) / step) * self.log[self.epoch_nb]["time"]
+        remaining_time = predicted_time - self.log[self.epoch_nb]["time"]
+        self.progress_bar(step, self.epoch_size/self.batch_size, self.log[self.epoch_nb]["loss"]/step, remaining_time,
+                          self.epoch_nb)
 
-    def init_epoch(self, e, nb_epochs):
-        self.epoch_time = 0
-        self.epoch_loss = 0
+    def add_val_iteration(self, step, loss, _time):
+        self.log[self.epoch_nb]["val_loss"] += loss
+        self.log[self.epoch_nb]["val_time"] += _time
 
-    def progress_bar(self, fraction, e):
+
+    def init_epoch(self, epoch):
+        if epoch > 0: print("Epoch complete. Validation loss: ", self.log[epoch -1]["val_loss"])
+        print("Epoch: ", epoch)
+        self.epoch_nb = epoch
+        self.log[epoch] = {"loss": 0, 'time': 0, "val_loss": 0, "val_time": 0}
+
+    def progress_bar(self, step_nb, nb_steps, loss, time_left, e):
         sys.stdout.write('\r')
-        sys.stdout.write("[%-60s] %d%%" % ('='*int((60*(e+1)/10)), (100*(e+1)/10)))
+        sys.stdout.write("%d/%d" % (step_nb*self.batch_size, self.epoch_size))
         sys.stdout.flush()
-        sys.stdout.write(", epoch %d" % (e+1))
+        sys.stdout.write("[%-60s] %d%%" % ('='*int(60*(step_nb/nb_steps)), (100*step_nb/nb_steps)))
+        sys.stdout.flush()
+        sys.stdout.write(", time_left %d" % time_left)
+        sys.stdout.flush()
+        sys.stdout.write(", loss: " + str(loss))
         sys.stdout.flush()
 
 
