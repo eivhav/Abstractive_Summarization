@@ -8,14 +8,14 @@ from torch import optim
 import torch.nn.functional as F
 import pickle
 
-use_cuda = True#torch.cuda.is_available()
+use_cuda = False#torch.cuda.is_available()
 multi_gpu = False
-#from Pytorch_seq2seq.data_loader import *
+from Pytorch_seq2seq.data_loader import Vocab, TextPair, DataSet
 data_path = '/home/havikbot/MasterThesis/Data/CNN_dailyMail/DailyMail/model_datasets/'
 path_2 = '/home/shomea/h/havikbot/MasterThesis/'
 
 #if 'dataset' not in globals():
-with open(path_2 +'DM_25k_summary.pickle', 'rb') as f:
+with open(data_path +'DM_25k_summary.pickle', 'rb') as f:
     dataset = pickle.load(f)
 
 
@@ -69,11 +69,11 @@ class AttnDecoderRNN(nn.Module):
         embedded_input = self.dropout(embedded_input)
         decoder_output, decoder_hidden = self.gru(embedded_input, torch.unsqueeze(last_decoder_hidden, 0))
 
-        att_dist = F.tanh((self.w_h * encoder_states) + (self.w_s * decoder_output) + self.att_bias)
-        att_dist = (self.attn_weight_v * att_dist).sum(-1)
-        att_dist = F.softmax(att_dist, dim=-1)
+        att_dist = (decoder_hidden.squeeze(0).unsqueeze(1) * (self.w_h * encoder_states)).sum(-1)
 
-        #print('att_dist', att_dist.size(), 'encoder_states', encoder_states.size(), 'att_dist-view', torch.unsqueeze(att_dist, 2))
+        # att_dist = F.softmax(att_dist, dim=-1)
+
+        temporal_att_dist = None
 
         context_vector = (torch.unsqueeze(att_dist, 2) * encoder_states).sum(1)
         decoder_context = torch.cat((torch.squeeze(decoder_output, 1), context_vector), -1)
@@ -114,7 +114,7 @@ UNK_token = 3
 batch_size = 3
 embedding_size = 4
 hidden_size = 8
-input_length = 3
+input_length = 5
 target_length = 2
 vocab_size = len(dataset.vocab.index2word)
 training_pairs = dataset.summary_pairs[0:int(len(dataset.summary_pairs)*0.8)]

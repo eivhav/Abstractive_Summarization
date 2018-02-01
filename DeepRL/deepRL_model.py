@@ -62,9 +62,13 @@ class AttnDecoderRNN(nn.Module):
         embedded_input = self.dropout(embedded_input)
         decoder_output, decoder_hidden = self.gru(embedded_input, torch.unsqueeze(last_decoder_hidden, 0))
 
+        '''
         att_dist = F.tanh((self.w_h * encoder_states) + (self.w_s * decoder_output) + self.att_bias)
         att_dist = (self.attn_weight_v * att_dist).sum(-1)
         att_dist = F.softmax(att_dist, dim=-1)
+        '''
+
+
 
         context_vector = (torch.unsqueeze(att_dist, 2) * encoder_states).sum(1)
         decoder_context = torch.cat((torch.squeeze(decoder_output, 1), context_vector), -1)
@@ -136,7 +140,7 @@ class PGCModel():
             print("Optimizers compiled")
 
         for epoch in range(len(self.logger.log), nb_epochs):
-            #random.shuffle(data)
+            random.shuffle(data)
             self.logger.init_epoch(epoch)
             for b in range(int(len(data)/batch_size)):
                 loss, _time = self.train_batch(samples=data[b*batch_size:(b+1)*batch_size], use_cuda=self.use_cuda)
@@ -144,7 +148,7 @@ class PGCModel():
                 if b % 200 == 0 and _print:
                     print('\n', [(t[0]['word'], t[0]['p_gen']) for t in self.predict([data[b*batch_size]], 30, False, self.use_cuda)])
 
-            for b in range(1345, int(len(val_data)/batch_size)):
+            for b in range(int(len(data)/batch_size)):
                 loss, _time = self.train_batch(val_data[b*batch_size:(b+1)*batch_size], self.use_cuda, backprop=False)
                 self.logger.add_val_iteration(b+1, loss, _time)
 
@@ -157,7 +161,6 @@ class PGCModel():
         input_variable, full_input_variable, target_variable, full_target_variable, decoder_input = \
             utils.get_batch_variables(samples, self.input_length, self.target_length, use_cuda,
                                       self.vocab.word2index['SOS'])
-
 
         encoder_hidden = self.encoder.init_hidden(len(samples), use_cuda)
         self.encoder_optimizer.zero_grad()
@@ -229,7 +232,7 @@ class PGCModel():
             'encoder': self.encoder.state_dict(), 'decoder': self.decoder.state_dict(),
             'encoder_optm': self.encoder_optimizer.state_dict(),'decoder_optm': self.decoder_optimizer.state_dict()
         }
-        filename= path + "checkpoint_" + id + "_ep@" +".pickle"
+        filename= path + "checkpoint_" + id + "_ep@" + epoch
         torch.save(data, filename)
 
     def load_model(self, path, id):
