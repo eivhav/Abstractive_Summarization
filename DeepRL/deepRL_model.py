@@ -26,9 +26,9 @@ class EncoderRNN(nn.Module):
         if use_cuda: return Variable(torch.zeros(2, batch_size, self.hidden_size)).cuda()
         else: return Variable(torch.zeros(2, batch_size, self.hidden_size))
 
-
 class AttnDecoderRNN(nn.Module):
-    def __init__(self, hidden_size, embedding_size, vocab_size, n_layers=1, dropout_p=0.1, embedding_weight=None):
+    def __init__(self, hidden_size, embedding_size, vocab_size,
+                 n_layers=1, dropout_p=0.1, encoder_max_length=100, decoder_max_length=100, embedding_weight=None):
         super(AttnDecoderRNN, self).__init__()
         # Parameters
         self.hidden_size = hidden_size
@@ -43,44 +43,53 @@ class AttnDecoderRNN(nn.Module):
 
         # Attention variables
         self.w_h = nn.Parameter(torch.randn(self.hidden_size))
-        self.w_s = nn.Parameter(torch.randn(self.hidden_size))
-        self.att_bias = nn.Parameter(torch.randn(1))
-        self.attn_weight_v = nn.Parameter(torch.randn(self.hidden_size))
+        self.w_d = nn.Parameter(torch.randn(self.hidden_size))
 
         # Generator
-        self.gen_layer = nn.Linear(self.hidden_size*2 + self.embedding_size, 1)
-        self.out_hidden = nn.Linear(self.hidden_size*2, self.embedding_size)
+
+        self.out_hidden = nn.Linear(self.hidden_size*3, self.embedding_size)
         self.out_vocab = nn.Linear(self.embedding_size, vocab_size)
+        self.gen_layer = nn.Linear(self.hidden_size*3, 1)
 
         # Weight_sharing
         if embedding_weight is not None:
             self.out_vocab.weight = embedding_weight
 
-    def forward(self, input_token, last_decoder_hidden, encoder_states, full_input_var, use_cuda):
-        #print(input_token, last_decoder_hidden, encoder_states, full_input_var, use_cuda)
+    def forward(self, input_token, prev_decoder_h_states, last_hidden, encoder_states, full_input_var, previous_att, use_cuda):
         embedded_input = self.embedding(input_token)
         embedded_input = self.dropout(embedded_input)
-        decoder_output, decoder_hidden = self.gru(embedded_input, torch.unsqueeze(last_decoder_hidden, 0))
+        decoder_output, decoder_hidden = self.gru(embedded_input, torch.unsqueeze(last_hidden, 0))
+        decoder_hidden = decoder_hidden.squeeze(0)
 
-        '''
-        att_dist = F.tanh((self.w_h * encoder_states) + (self.w_s * decoder_output) + self.att_bias)
-        att_dist = (self.attn_weight_v * att_dist).sum(-1)
-        att_dist = F.softmax(att_dist, dim=-1)
-        '''
+        att_dist = (decoder_hidden.unsqueeze(1) * (self.w_h * encoder_states)).sum(-1)
 
+        if previous_att is None:
+            temporal_att = torch.exp(att_dist)
+            previous_att = att_dist.unsqueeze(1)
+            att_dist = temporal_att / temporal_att.sum(-1).unsqueeze(-1)
+            encoder_context = (torch.unsqueeze(att_dist, 2) * encoder_states).sum(1)
 
+            decoder_context = Variable(torch.zeros(input_token.size()[0], self.hidden_size))
+            if use_cuda: decoder_context = decoder_context.cuda()
+        else:
+            temporal_att = torch.exp(att_dist) / torch.exp(previous_att).sum(1)
+            previous_att = torch.cat((previous_att, att_dist.unsqueeze(1)), 1)
+            att_dist = temporal_att / temporal_att.sum(-1).unsqueeze(-1)
+            encoder_context = (torch.unsqueeze(att_dist, 2) * encoder_states).sum(1)
 
-        context_vector = (torch.unsqueeze(att_dist, 2) * encoder_states).sum(1)
-        decoder_context = torch.cat((torch.squeeze(decoder_output, 1), context_vector), -1)
-        p_vocab = F.softmax(self.out_vocab(self.out_hidden(decoder_context)), dim=-1) # replace with embedding weight
+            decoder_att_dist = (decoder_hidden.unsqueeze(1) * (self.w_d * prev_decoder_h_states)).sum(-1)
+            decoder_att_dist = F.softmax(decoder_att_dist, -1)
+            decoder_context = (torch.unsqueeze(decoder_att_dist, 2) * prev_decoder_h_states).sum(1)
 
-        p_gen = F.sigmoid(self.gen_layer(torch.cat((decoder_context, torch.squeeze(embedded_input, 1)), 1)))
+        combined_context = torch.cat((torch.cat((decoder_hidden, encoder_context), -1), decoder_context), -1)
+
+        p_vocab = F.softmax(self.out_vocab(self.out_hidden(combined_context)), dim=-1) # replace with embedding weight
+        p_gen = F.sigmoid(self.gen_layer(combined_context))
         '''
         pointer_dist = att_dist * (1-p_gen)
         padding_matrix = Variable(torch.zeros(batch_size, 250)).cuda()
         generator_dist = torch.cat((p_vocab * p_gen, padding_matrix), 1)
         p_final = generator_dist.scatter_add_(1, full_input_var, pointer_dist)
-
         '''
         token_input_dist = Variable(torch.zeros((full_input_var.size()[0], self.vocab_size+500)))
         padding_matrix_2 = Variable(torch.zeros(full_input_var.size()[0], 500))
@@ -91,15 +100,15 @@ class AttnDecoderRNN(nn.Module):
         token_input_dist.scatter_add_(1, full_input_var, att_dist)
         p_final = torch.cat((p_vocab * p_gen, padding_matrix_2), 1) + (1-p_gen) * token_input_dist
 
-        #print((p_final_2 - p_final).sum(-1))
-        return decoder_hidden.squeeze(0), p_final, p_gen, p_vocab, att_dist
-        #return decoder_hidden.squeeze(0), None, None, p_vocab, att_dist
+        decoder_h_states = torch.cat((prev_decoder_h_states, decoder_hidden.unsqueeze(1)), 1)
+        return p_final, p_gen, p_vocab, att_dist, decoder_h_states, decoder_hidden, previous_att
+
+
 
     def init_hidden(self, use_cuda):
         result = Variable(torch.zeros(1, 1, self.hidden_size))
         if use_cuda: return result.cuda()
         else: return result
-
 
 
 class PGCModel():
@@ -146,7 +155,9 @@ class PGCModel():
                 loss, _time = self.train_batch(samples=data[b*batch_size:(b+1)*batch_size], use_cuda=self.use_cuda)
                 self.logger.add_iteration(b+1, loss, _time)
                 if b % 200 == 0 and _print:
-                    print('\n', [(t[0]['word'], t[0]['p_gen']) for t in self.predict([data[b*batch_size]], 30, False, self.use_cuda)])
+                    preds = self.predict([data[b*batch_size]], self.target_length, False, self.use_cuda)
+                    print('\n', [(t[0]['word'], t[0]['p_gen']) for t in preds])
+                    print(" ".join([t[0]['word'] for t in preds]))
 
             for b in range(int(len(data)/batch_size)):
                 loss, _time = self.train_batch(val_data[b*batch_size:(b+1)*batch_size], self.use_cuda, backprop=False)
@@ -169,10 +180,12 @@ class PGCModel():
 
         encoder_outputs, encoder_hidden = self.encoder(input_variable, encoder_hidden)
         decoder_hidden = torch.cat((encoder_hidden[0], encoder_hidden[1]), -1)
+        decoder_hidden_states = torch.cat((encoder_hidden[0], encoder_hidden[1]), -1).unsqueeze(1)
+        previous_att = None
 
         for token_i in range(self.target_length):
-            decoder_hidden, p_final, p_gen, p_vocab, attention_dist = \
-                self.decoder(decoder_input, decoder_hidden, encoder_outputs, full_input_variable, use_cuda)
+            p_final, p_gen, p_vocab, att_dist, decoder_h_states, decoder_hidden, previous_att = \
+                self.decoder(decoder_input, decoder_hidden_states, decoder_hidden, encoder_outputs, full_input_variable, previous_att, use_cuda)
             loss += self.criterion(torch.log(p_final.clamp(min=1e-8)), full_target_variable.narrow(1, token_i, 1).squeeze(-1))
 
             if random.uniform(0, 1) < tf_ratio: decoder_input = target_variable.narrow(1, token_i, 1)
@@ -196,15 +209,16 @@ class PGCModel():
             utils.get_batch_variables(samples, self.input_length, target_length, use_cuda,
                                       self.vocab.word2index['SOS'])
         encoder_hidden = self.encoder.init_hidden(len(samples), use_cuda)
-
         encoder_outputs, encoder_hidden = self.encoder(input_variable, encoder_hidden)
         decoder_hidden = torch.cat((encoder_hidden[0], encoder_hidden[1]), -1)
+        decoder_hidden_states = torch.cat((encoder_hidden[0], encoder_hidden[1]), -1).unsqueeze(1)
+        previous_att = None
 
         result = []
         for token_i in range(target_length):
 
-            decoder_hidden, p_final, p_gen, p_vocab, attention_dist = \
-                self.decoder(decoder_input, decoder_hidden, encoder_outputs, full_input_variable, use_cuda)
+            p_final, p_gen, p_vocab, att_dist, decoder_h_states, decoder_hidden, previous_att = \
+                self.decoder(decoder_input, decoder_hidden_states, decoder_hidden, encoder_outputs, full_input_variable, previous_att, use_cuda)
 
             if not beam_size:
                 p_vocab_word, vocab_word_idx = p_final.max(1)

@@ -7,7 +7,7 @@ from torch.autograd import Variable
 from torch import optim
 import torch.nn.functional as F
 import pickle
-
+'''
 use_cuda = False#torch.cuda.is_available()
 multi_gpu = False
 from Pytorch_seq2seq.data_loader import Vocab, TextPair, DataSet
@@ -17,7 +17,7 @@ path_2 = '/home/shomea/h/havikbot/MasterThesis/'
 #if 'dataset' not in globals():
 with open(data_path +'DM_25k_summary.pickle', 'rb') as f:
     dataset = pickle.load(f)
-
+'''
 
 
 class EncoderRNN(nn.Module):
@@ -51,41 +51,55 @@ class AttnDecoderRNN(nn.Module):
 
         # Attention variables
         self.w_h = nn.Parameter(torch.randn(self.hidden_size))
-        self.w_s = nn.Parameter(torch.randn(self.hidden_size))
-        self.att_bias = nn.Parameter(torch.randn(1))
-        self.attn_weight_v = nn.Parameter(torch.randn(self.hidden_size))
+        self.w_d = nn.Parameter(torch.randn(self.hidden_size))
 
         # Generator
-        self.gen_layer = nn.Linear(self.hidden_size*2 + self.embedding_size, 1)
-        self.out_hidden = nn.Linear(self.hidden_size*2, self.embedding_size)
+
+        self.out_hidden = nn.Linear(self.hidden_size*3, self.embedding_size)
         self.out_vocab = nn.Linear(self.embedding_size, vocab_size)
+        self.gen_layer = nn.Linear(self.hidden_size*3, 1)
 
         # Weight_sharing
         if embedding_weight is not None:
             self.out_vocab.weight = embedding_weight
 
-    def forward(self, input_token, last_decoder_hidden, encoder_states, full_input_var):
+    def forward(self, input_token, prev_decoder_h_states, encoder_states, full_input_var, previous_att=None):
         embedded_input = self.embedding(input_token)
         embedded_input = self.dropout(embedded_input)
-        decoder_output, decoder_hidden = self.gru(embedded_input, torch.unsqueeze(last_decoder_hidden, 0))
 
-        att_dist = (decoder_hidden.squeeze(0).unsqueeze(1) * (self.w_h * encoder_states)).sum(-1)
+        last_hidden = prev_decoder_h_states.narrow(1, prev_decoder_h_states.size()[1]-1, 1).squeeze(1)
+        decoder_output, decoder_hidden = self.gru(embedded_input, torch.unsqueeze(last_hidden, 0))
+        decoder_hidden = decoder_hidden.squeeze(0)
 
-        # att_dist = F.softmax(att_dist, dim=-1)
+        att_dist = (decoder_hidden.unsqueeze(1) * (self.w_h * encoder_states)).sum(-1)
 
-        temporal_att_dist = None
+        if previous_att is None:
+            temporal_att = torch.exp(att_dist)
+            previous_att = att_dist.unsqueeze(1)
+            att_dist = temporal_att / temporal_att.sum(-1).unsqueeze(-1)
+            encoder_context = (torch.unsqueeze(att_dist, 2) * encoder_states).sum(1)
 
-        context_vector = (torch.unsqueeze(att_dist, 2) * encoder_states).sum(1)
-        decoder_context = torch.cat((torch.squeeze(decoder_output, 1), context_vector), -1)
-        p_vocab = self.out_vocab(self.out_hidden(decoder_context)) # replace with embedding weight
+            decoder_context = Variable(torch.zeros(input_token.size()[0], self.hidden_size))
+            if use_cuda: decoder_context = decoder_context.cuda()
+        else:
+            temporal_att = torch.exp(att_dist) / torch.exp(previous_att).sum(1)
+            previous_att = torch.cat((previous_att, att_dist.unsqueeze(1)), 1)
+            att_dist = temporal_att / temporal_att.sum(-1).unsqueeze(-1)
+            encoder_context = (torch.unsqueeze(att_dist, 2) * encoder_states).sum(1)
 
-        p_gen = F.sigmoid(self.gen_layer(torch.cat((decoder_context, torch.squeeze(embedded_input, 1)), 1)))
+            decoder_att_dist = (decoder_hidden.unsqueeze(1) * (self.w_d * prev_decoder_h_states)).sum(-1)
+            decoder_att_dist = F.softmax(decoder_att_dist, -1)
+            decoder_context = (torch.unsqueeze(decoder_att_dist, 2) * prev_decoder_h_states).sum(1)
+
+        combined_context = torch.cat((torch.cat((decoder_hidden, encoder_context), -1), decoder_context), -1)
+
+        p_vocab = self.out_vocab(self.out_hidden(combined_context)) # replace with embedding weight
+        p_gen = F.sigmoid(self.gen_layer(combined_context))
         '''
         pointer_dist = att_dist * (1-p_gen)
         padding_matrix = Variable(torch.zeros(batch_size, 250)).cuda()
         generator_dist = torch.cat((p_vocab * p_gen, padding_matrix), 1)
         p_final = generator_dist.scatter_add_(1, full_input_var, pointer_dist)
-
         '''
         token_input_dist = Variable(torch.zeros((full_input_var.size()[0], self.vocab_size+250)))
         padding_matrix_2 = Variable(torch.zeros(full_input_var.size()[0], 250))
@@ -96,9 +110,9 @@ class AttnDecoderRNN(nn.Module):
         token_input_dist.scatter_add_(1, full_input_var, att_dist)
         p_final = torch.cat((p_vocab * p_gen, padding_matrix_2), 1) + (1-p_gen) * token_input_dist
 
-        #print((p_final_2 - p_final).sum(-1))
-        return decoder_hidden.squeeze(0), p_final, p_gen, p_vocab, att_dist
-        #return decoder_hidden.squeeze(0), None, None, p_vocab, att_dist
+        decoder_h_states = torch.cat((prev_decoder_h_states, decoder_hidden.unsqueeze(1)), 1)
+        return decoder_h_states, p_final, p_gen, p_vocab, att_dist, previous_att
+
 
 
     def init_hidden(self):
@@ -112,10 +126,10 @@ EOS_token = 2
 UNK_token = 3
 
 batch_size = 3
-embedding_size = 4
-hidden_size = 8
-input_length = 5
-target_length = 2
+embedding_size = 128
+hidden_size = 256
+input_length = 300
+target_length = 50
 vocab_size = len(dataset.vocab.index2word)
 training_pairs = dataset.summary_pairs[0:int(len(dataset.summary_pairs)*0.8)]
 test_pairs = dataset.summary_pairs[int(len(dataset.summary_pairs)*0.8):]
@@ -139,34 +153,6 @@ teacher_forcing_ratio = 0.5
 def zero_pad(tokens, len_limit):
     if len(tokens) < len_limit: return tokens + [0] * (len_limit - len(tokens))
     else: return tokens[:len_limit]
-
-
-def print_attention_dist(text_pair, vocab, att_dist):
-    attentions = []
-    for i in range(min(len(att_dist), len(text_pair.full_source_tokens))):
-        word_idx = text_pair.full_source_tokens[i]
-        if att_dist[i] > 0.05:
-            if word_idx < len(vocab.index2word) : attentions.append((vocab.index2word[word_idx], att_dist[i]))
-            else:
-                for w in text_pair.unknown_tokens.keys():
-                    if text_pair.unknown_tokens[w] == word_idx:
-                        attentions.append((w, att_dist[i]))
-                        break
-
-        '''
-        sample = 6
-        pred = p_final.max(1)[1][sample].data[0]
-        true = full_target_variable.narrow(1, token_i, 1).squeeze(-1)[sample].data[0]
-        index2word = dataset.vocab.index2word
-        if pred in index2word: pred_w = index2word[pred]
-        else: pred_w = 'UNK'
-        if true in index2word: true_w = index2word[true]
-        else: true_w = 'UNK'
-        print(print_attention_dist(samples[sample], dataset.vocab, token_input_dist[0].data))
-        print(pred_w, true_w)
-        '''
-
-    return attentions
 
 
 
@@ -193,12 +179,15 @@ def train_batch(nb, samples):
 
     decoder_input = Variable(torch.LongTensor([[SOS_token] for i in range(batch_size)]))
     if use_cuda: decoder_input = decoder_input.cuda()
-    decoder_hidden = torch.cat((encoder_hidden[0], encoder_hidden[1]), -1)
 
+    decoder_hidden_states = torch.cat((encoder_hidden[0], encoder_hidden[1]), -1).unsqueeze(1)
+    previous_att = None
+    count = 0
     for token_i in range(target_length):
-
-        decoder_hidden, p_final, p_gen, p_vocab, attention_dist = \
-            decoder(decoder_input, decoder_hidden, encoder_outputs, full_input_variable)
+        print("iteration ", count)
+        count += 1
+        decoder_hidden_states, p_final, p_gen, p_vocab, attention_dist, previous_att = \
+            decoder(decoder_input, decoder_hidden_states, encoder_outputs, full_input_variable, previous_att)
         loss += criterion(F.log_softmax(p_vocab, dim=1), target_variable.narrow(1, token_i, 1).squeeze(-1))
         decoder_input = target_variable.narrow(1, token_i, 1) # Teacher forcing
 
@@ -209,78 +198,10 @@ def train_batch(nb, samples):
     return loss.data[0] / target_length
 
 
-import sys
-def progress_bar(fraction):
-    sys.stdout.write('\r')
-    sys.stdout.write("[%-60s] %d%%" % ('='*int((60*(e+1)/10)), (100*(e+1)/10)))
-    sys.stdout.flush()
-    sys.stdout.write(", epoch %d" % (e+1))
-    sys.stdout.flush()
-
-
-def translate_word(token, text_pair, vocab):
-    print(token)
-    if token in vocab.index2word: return vocab.index2word[token]
-    if token in text_pair.unknown_tokens.values():
-        return [k for k in text_pair.unknown_tokens if text_pair.unknown_tokens[k] == token][0]
-    return UNK_token
-
-
-def predict_and_print(pair):
-    print(pair.target_text)
-    encoder_hidden = Variable(torch.zeros(2, 1, embedding_size))
-    input_variable = Variable(torch.LongTensor([zero_pad(pair.masked_source_tokens, input_length)]))
-    full_input_variable = Variable(torch.LongTensor([zero_pad(pair.full_source_tokens, input_length)]))
-    if use_cuda:
-        input_variable = input_variable.cuda()
-        encoder_hidden= encoder_hidden.cuda()
-        full_input_variable = full_input_variable.cuda()
-    encoder_outputs, encoder_hidden = encoder(input_variable, encoder_hidden)
-    decoder_input = Variable(torch.LongTensor([[SOS_token]]))
-    if use_cuda: decoder_input = decoder_input.cuda()
-    decoder_hidden = torch.cat((encoder_hidden[0], encoder_hidden[1]), -1)
-
-    result = []
-    gen_sequence = []
-    for token_i in range(target_length):
-
-        decoder_hidden, p_final, p_gen, p_vocab, attention_dist = decoder(decoder_input, decoder_hidden, encoder_outputs, full_input_variable)
-        '''
-        p_word, decoded_word_idx = p_final.max(1)
-        decoded_word = translate_word(decoded_word_idx.data[0], pair, dataset.vocab)
-        p_att, attended_pos = attention_dist.max(1)
-        attended_word = translate_word(pair.full_source_tokens[attended_pos.data[0]], pair, dataset.vocab)
-
-        if decoded_word_idx.data[0] < 25000: decoder_input = Variable(torch.LongTensor([[decoded_word_idx.data[0]]]))
-        else: decoder_input = Variable(torch.LongTensor([[UNK_token]]))
-        if use_cuda: decoder_input = decoder_input.cuda()
-
-        result.append({'p_gen': round(p_gen.data[0][0], 3),'word': decoded_word, 'p_word': round(p_word.data[0], 3),
-                      'att_word': attended_word, 'p_att': round(p_att.data[0], 3)})
-        '''
-        p_vocab_word, vocab_word_idx = p_vocab.max(1)
-
-        gen_sequence.append((translate_word(vocab_word_idx.data[0], pair, dataset.vocab), round(p_vocab_word.data[0], 3)))
-
-    return result, gen_sequence
-
-#predict_and_print(training_pairs[20])
-
-
 nb_epochs = 20
-for e in range(nb_epochs):
-
-    epoch_loss = 0
-    for b in range(int(len(training_pairs)/batch_size)):
-        batch = training_pairs[b*batch_size:(b+1)*batch_size]
-        epoch_loss += train_batch(b, batch)
-        if b % 50 == 0:
-            print(b*batch_size, '/', len(training_pairs), "loss:", epoch_loss/ (b+1))
-            sample = b*batch_size
-            test_result, gen_seq = predict_and_print(training_pairs[sample])
-            print(gen_seq)
-
-
+batch = training_pairs[:batch_size]
+epoch_loss = 0
+epoch_loss += train_batch(0, batch)
 
 
 

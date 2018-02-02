@@ -22,6 +22,9 @@ config = {'embedding_size': 128, 'hidden_size': 256, 'input_length': 300, 'targe
 
 
 pointer_gen_model = PGCModel(config=config, vocab=dataset.vocab, use_cuda=use_cuda, model_path=model_path, model_id='test')
+
+
+'''
 pointer_gen_model.train(data=training_pairs, val_data=test_pairs,
                         nb_epochs=20, batch_size=32,
                         optimizer=torch.optim.Adagrad, lr=0.015,
@@ -29,4 +32,14 @@ pointer_gen_model.train(data=training_pairs, val_data=test_pairs,
                         use_cuda=True, _print=True
                         )
 
+'''
+pointer_gen_model.load_model(model_path, 'checkpoint_test_ep@.pickle')
 
+for sample in test_pairs[20:25]:
+    print(sample.source_text)
+    print()
+    print(sample.target_text)
+    print()
+    result = pointer_gen_model.predict([sample], target_length=50, beam_size=5, use_cuda=use_cuda)
+    for r in result: print(r)
+    print('\n\n')
