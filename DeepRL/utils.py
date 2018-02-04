@@ -105,7 +105,7 @@ def translate_word(token, text_pair, vocab):
 
 
 def predict_and_print(pair, encoder, decoder, input_length, target_length, SOS_token, vocab, use_cuda, UNK_token):
-    print(pair.target_text)
+    print(pair.get_text(pair.full_target_tokens, vocab))
 
     input_variable, full_input_variable, _, _, decoder_input = \
         get_batch_variables([pair], input_length, target_length, use_cuda, SOS_token)

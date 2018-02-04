@@ -11,13 +11,16 @@ use_cuda = torch.cuda.is_available()
 
 data_path = '/home/havikbot/MasterThesis/Data/CNN_dailyMail/DailyMail/model_datasets/'
 path_2 = '/home/shomea/h/havikbot/MasterThesis/Data/'
-path_3 = '/home/havikbot/MasterThesis/Data/NYTcorpus/with_abstract/model_data/'
+path_3 = '/home/havikbot/MasterThesis/Data/'
+path4 = '/home/havikbot/MasterThesis/Data/NYTcorpus/with_abstract/model_data/'
+samuel_path = '/srv/havikbot/MasterThesis/Data/'
 
 model_path = '/home/shomea/h/havikbot/MasterThesis/Models/DeepRL/'
-data_set_name = 'NYT_40k_summary_v1.pickle'
+data_set_name_dm = 'DM_25k_summary_v2.pickle'
+data_set_name_nyt = 'NYT_40k_summary_v3.pickle'
 
 
-with open(path_3 +data_set_name, 'rb') as f: dataset = pickle.load(f)
+with open(samuel_path +data_set_name_nyt, 'rb') as f: dataset = pickle.load(f)
 training_pairs = dataset.summary_pairs[0:int(len(dataset.summary_pairs)*0.08)]
 test_pairs = dataset.summary_pairs[int(len(dataset.summary_pairs)*0.8):]
 

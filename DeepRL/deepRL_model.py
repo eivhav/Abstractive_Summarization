@@ -6,9 +6,9 @@ from torch.autograd import Variable
 import torch.nn.functional as F
 import time
 import random
-import utils as utils
+import DeepRL.utils as utils
 import shutil
-
+#
 
 class EncoderRNN(nn.Module):
     def __init__(self, vocab_size, hidden_size):

@@ -27,17 +27,23 @@ class Vocab:
 
 
 class TextPair:
-    def __init__(self, source_text, target_text, limit, vocab):
-        self.source_text = source_text
-        self.target_text = target_text
+    def __init__(self, source, target, limit, vocab):
         self.full_source_tokens = []
         self.masked_source_tokens = []
         self.full_target_tokens = []
         self.masked_target_tokens = []
         self.unknown_tokens = dict()
 
-        self.add_sentence(source_text, (self.full_source_tokens, self.masked_source_tokens), vocab)
-        self.add_sentence(target_text, (self.full_target_tokens, self.masked_target_tokens), vocab)
+        self.add_sentence(source, (self.full_source_tokens, self.masked_source_tokens), vocab)
+        self.add_sentence(target, (self.full_target_tokens, self.masked_target_tokens), vocab)
+
+    def get_text(self, tokens, vocab):
+        words = []
+        for t in tokens:
+            if t in vocab.index2word: words.append(vocab.index2word[t])
+            else: [words.append(w) for w in self.unknown_tokens if self.unknown_tokens[w] == t]
+        return " ".join(words)
+
 
     def add_sentence(self, sentence, destination, vocab):
         for w in sentence.split(" "):
@@ -130,7 +136,7 @@ def create_and_save_dataset(dataset):
     dataset.create_dataset(path, 'tok_text_content', 'tok_summary_items', 40000)
 
     import pickle
-    with open(out_path + 'NYT_40k_summary_v1.pickle', 'wb') as handle:
+    with open(out_path + 'NYT_40k_summary_v3.pickle', 'wb') as handle:
         pickle.dump(dataset, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 
