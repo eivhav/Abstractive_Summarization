@@ -169,6 +169,7 @@ class PGCModel():
 
     def train_batch(self, samples, use_cuda, tf_ratio=0.5, backprop=True):
         start = time.time()
+        if len(samples) == 0: return 0, 0
         input_variable, full_input_variable, target_variable, full_target_variable, decoder_input = \
             utils.get_batch_variables(samples, self.input_length, self.target_length, use_cuda,
                                       self.vocab.word2index['SOS'])
@@ -177,7 +178,7 @@ class PGCModel():
         self.encoder_optimizer.zero_grad()
         self.decoder_optimizer.zero_grad()
         loss = 0
-
+        if not backprop: print(samples, input_variable)
         encoder_outputs, encoder_hidden = self.encoder(input_variable, encoder_hidden)
         decoder_hidden = torch.cat((encoder_hidden[0], encoder_hidden[1]), -1)
         decoder_hidden_states = torch.cat((encoder_hidden[0], encoder_hidden[1]), -1).unsqueeze(1)
@@ -246,7 +247,7 @@ class PGCModel():
             'encoder': self.encoder.state_dict(), 'decoder': self.decoder.state_dict(),
             'encoder_optm': self.encoder_optimizer.state_dict(),'decoder_optm': self.decoder_optimizer.state_dict()
         }
-        filename= path + "checkpoint_" + id + "_ep@" + epoch
+        filename= path + "checkpoint_" + id + "_ep@.pickle"
         torch.save(data, filename)
 
     def load_model(self, path, id):

@@ -3,11 +3,11 @@ import json
 from multiprocessing import Process
 import spacy
 import unicodedata
-path = '/home/havikbot/MasterThesis/Data/CNN_dailyMail/DailyMail/'
-out_path = '/home/havikbot/MasterThesis/Data/CNN_dailyMail/extracted/'
-path_toshiba = '/media/havikbot/TOSHIBA EXT/MasterThesis/Data/dailymail/downloads/'
+#path = '/home/havikbot/MasterThesis/Data/CNN_dailyMail/DailyMail/'
+#out_path = '/home/havikbot/MasterThesis/Data/CNN_dailyMail/extracted/'
+#path_toshiba = '/media/havikbot/TOSHIBA EXT/MasterThesis/Data/dailymail/downloads/'
 import re
-unicodedata.normalize("NFKD", unicode_str)
+
 
 def unicode_to_ascii(s): return ''.join(c for c in unicodedata.normalize('NFD', s) if unicodedata.category(c) != 'Mn')
 
@@ -27,7 +27,7 @@ def split_char_numbers(word_list):
 # Maybe do something about (son _ in _ law, x _ year _ old )
 '''
 
-def tokenize_data(data, nlp, keys, p_id):
+def tokenize_data(path, data, nlp, keys, p_id):
     count = 0
     results = dict()
     for k in keys:
@@ -57,18 +57,50 @@ def tokenize_data(data, nlp, keys, p_id):
         handle.write(json.dumps(results))
 
 
+def clean_nyt(text_elements):
+    text_elements = [text.replace("(S)", "").replace("(M)", "").strip() for text in text_elements if len(text) > 15]
+    return ". ".join(text_elements).replace("  ", " ")
+
+
+def tokenize_nyt(path, nlp, articles, p_id):
+    count = 0
+    results = dict()
+    for article, key in articles:
+        if 'summary_items' not in article.keys() or 'headline' not in article.keys(): continue
+        count += 1
+        if count % 1000 == 0:
+            with open(path+ "tokenized/"+"NYT_tok_"+str(int(count/1000)) + "000_"+str(p_id)+".txt", "w") as handle:
+                handle.write(json.dumps(results))
+            results = dict()
+
+        results[key] = article
+        for type in ['headline', 'summary_items', 'text_content']:
+            if type == 'headline': text = clean_nyt(article[type])
+            elif type == 'summary_items': text = clean_nyt(article[type])
+            else: text = clean_nyt([article[type]])
+            results[key]['tok_'+type] = " ".join([t.text for t in nlp(text)]).replace("' '", "''")
+
+        if count % 1000 == 0:
+            print(p_id, count, 100*count/len(keys))
+            print(article)
+            for type in ['headline', 'summary_items', 'text_content']:
+                print(results[key]['tok_'+type])
+
+    with open(path+ "tokenized/"+"NYT_tok_last"+str(p_id)+".txt", "w") as handle:
+        handle.write(json.dumps(results))
 
 
 if __name__ == '__main__':
+    path = "/home/havikbot/MasterThesis/Data/NYTcorpus/with_abstract/"
+
     extracted_files = list(glob.iglob(path+"data_json/"+"*.txt"))
     data = dict()
     count = 0
     for file in extracted_files:
-        print(file)
         d = json.load(open(file))
         for k in d.keys(): data[k] = d[k]
 
-    nb_processes = 4
+    nb_processes = 2
     tasks = []
     results = []
     for i in range(nb_processes):
@@ -77,11 +109,12 @@ if __name__ == '__main__':
 
     processes = []
     keys = list(data.keys())
-    for i in range(len(keys)): tasks[i % nb_processes].append(keys[i])
+    for i in range(len(keys)): tasks[i % nb_processes].append((data[keys[i]], keys[i]))
+    data = None
 
     for p in range(nb_processes):
         nlp = spacy.load('en')
-        proc = Process(target=tokenize_data, args=(data, nlp, tasks[p], p))
+        proc = Process(target=tokenize_nyt, args=(path, nlp, tasks[p], p))
         proc.start()
         proc = processes.append(proc)
     for p in processes: p.join()
