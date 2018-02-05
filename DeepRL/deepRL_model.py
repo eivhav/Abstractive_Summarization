@@ -6,7 +6,7 @@ from torch.autograd import Variable
 import torch.nn.functional as F
 import time
 import random
-import DeepRL.utils as utils
+import utils as utils
 import shutil
 #
 
@@ -212,30 +212,70 @@ class PGCModel():
         encoder_hidden = self.encoder.init_hidden(len(samples), use_cuda)
         encoder_outputs, encoder_hidden = self.encoder(input_variable, encoder_hidden)
         decoder_hidden = torch.cat((encoder_hidden[0], encoder_hidden[1]), -1)
-        decoder_hidden_states = torch.cat((encoder_hidden[0], encoder_hidden[1]), -1).unsqueeze(1)
+        decoder_h_states = torch.cat((encoder_hidden[0], encoder_hidden[1]), -1).unsqueeze(1)
         previous_att = None
 
-        result = []
-        for token_i in range(target_length):
+        if not beam_size:
+            result = []
+            for token_i in range(target_length):
 
-            p_final, p_gen, p_vocab, att_dist, decoder_h_states, decoder_hidden, previous_att = \
-                self.decoder(decoder_input, decoder_hidden_states, decoder_hidden, encoder_outputs, full_input_variable, previous_att, use_cuda)
+                p_final, p_gen, p_vocab, att_dist, decoder_h_states, decoder_hidden, previous_att = \
+                    self.decoder(decoder_input, decoder_h_states, decoder_hidden, encoder_outputs, full_input_variable, previous_att, use_cuda)
 
-            if not beam_size:
-                p_vocab_word, vocab_word_idx = p_final.max(1)
-                result.append([{'token_idx': vocab_word_idx.data[i],
-                                'word': utils.translate_word(vocab_word_idx.data[i], samples[i], self.vocab),
-                                'p_gen': round(p_gen.data[i][0], 3)}
-                                    for i in range(len(samples))])
-                _, max_tokens = p_final.max(1)
-                for i in range(max_tokens.size()[0]):
-                    if max_tokens.data[i] >= self.vocab.vocab_size: max_tokens.data[i] = self.vocab.word2index['UNK']
-                decoder_input = max_tokens.unsqueeze(1)
+                if not beam_size:
+                    p_vocab_word, vocab_word_idx = p_final.max(1)
+                    result.append([{'token_idx': vocab_word_idx.data[i],
+                                    'word': utils.translate_word(vocab_word_idx.data[i], samples[i], self.vocab),
+                                    'p_gen': round(p_gen.data[i][0], 3)}
+                                        for i in range(len(samples))])
+                    _, max_tokens = p_final.max(1)
+                    for i in range(max_tokens.size()[0]):
+                        if max_tokens.data[i] >= self.vocab.vocab_size: max_tokens.data[i] = self.vocab.word2index['UNK']
+                    decoder_input = max_tokens.unsqueeze(1)
 
-            else:
-                pass
-                # conduct beam search
-        return result
+                else:
+                    pass
+                    # conduct beam search
+            return result
+
+        else:
+            search_complete = False
+            top_beams = [Beam(decoder_input, decoder_h_states, decoder_hidden, previous_att, [], [])]
+
+            while not search_complete:
+                new_beams = []
+                for beam in top_beams:
+                    if beam.complete: new_beams.append(beam)
+                    else:
+                        p_final, p_gen, p_vocab, att_dist, decoder_h_states, decoder_hidden, previous_att = \
+                            self.decoder(beam.decoder_input, beam.decoder_h_states, beam.decoder_hidden,
+                                         encoder_outputs, full_input_variable, beam.previous_att, use_cuda)
+                        for k in range(beam_size):
+                            p_vocab_word, vocab_word_idx = p_final.max(1)
+                            _, max_tokens = p_final.max(1)
+                            if max_tokens.data[0] >= self.vocab.vocab_size: max_tokens.data[0] = self.vocab.word2index['UNK']
+                            new_beams.append(Beam(max_tokens.unsqueeze(1),
+                                                  decoder_h_states, decoder_hidden, previous_att,
+                                                  beam.log_probs+[p_vocab_word.data[0]],
+                                                  beam.sequence + [vocab_word_idx.data[0]]))
+                            p_final[0, vocab_word_idx.data[0]] = 0
+
+                            if len(new_beams[-1].sequence) == target_length or vocab_word_idx.data[0] == self.vocab.word2index['EOS']:
+                                new_beams[-1].complete = True
+
+                all_beams = sorted([(b, b.compute_score()) for b in new_beams], key=lambda tup: tup[1])
+                if len(all_beams) > beam_size: all_beams = all_beams[:beam_size]
+                top_beams = [beam[0] for beam in all_beams]
+
+                if len([True for b in top_beams if b.complete]) == beam_size: search_complete = True
+
+            return [[" ".join([utils.translate_word(t, samples[0], self.vocab) for t in b.sequence]),
+                     b.compute_score()]
+                    for b in top_beams]
+
+
+
+
 
     def save_model(self, path, id, epoch, loss):
         data = {
@@ -250,8 +290,30 @@ class PGCModel():
         filename= path + "checkpoint_" + id + "_ep@.pickle"
         torch.save(data, filename)
 
-    def load_model(self, path, id):
-        pass
+    def load_model(self, file_path, file_name):
+        data = torch.load(file_path + file_name)
+        self.encoder.load_state_dict(data['encoder'])
+        self.decoder.load_state_dict(data['decoder'])
+        self.vocab = data['vocab']
+
+import math
+class Beam():
+    def __init__(self, decoder_input, decoder_h_states, decoder_hidden, previous_att, log_probs, sequence):
+        self.decoder_input = decoder_input
+        self.decoder_hidden = decoder_hidden
+        self.decoder_h_states = decoder_h_states
+        self.previous_att = previous_att
+
+        self.log_probs = log_probs
+        self.sequence = sequence
+        self.complete = False
+
+    def compute_score(self):
+        score = 1
+        for p in [-math.log(log_prob) for log_prob in self.log_probs]:
+            score += p
+        return score
+
 
 
 
