@@ -28,8 +28,8 @@ test_pairs = dataset.summary_pairs[int(len(dataset.summary_pairs)*0.8):]
 
 config = {'model_type': 'CoverageAttn',
           'embedding_size': 200, 'hidden_size': 400,
-          'input_length': 400, 'target_length': 25,
-          'model_path': model_path, 'model_id': 'PGC_test' }
+          'input_length': 400, 'target_length': 75,
+          'model_path': model_path, 'model_id': 'PGC_NYTfiltered_7_feb' }
 
 
 pointer_gen_model = PGModel(config=config, vocab=dataset.vocab, use_cuda=use_cuda)
