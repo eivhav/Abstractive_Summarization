@@ -58,7 +58,7 @@ def get_batch_variables(samples, input_length, target_length, use_cuda, SOS_toke
 
 
 def sort_and_shuffle_data(samples, nb_buckets, batch_size):
-    sorted_samples = sorted(samples, key=lambda pair: len(pair.masked_source_tokens))
+    sorted_samples = sorted(samples, key=lambda pair: len(pair.masked_target_tokens))
     bucket_size = int(len(samples) / nb_buckets)
     buckets = [sorted_samples[bucket_size*i:bucket_size*(i+1)] for i in range(nb_buckets)]
     random.shuffle(buckets)
@@ -74,12 +74,13 @@ def sort_and_shuffle_data(samples, nb_buckets, batch_size):
 
 
 class TrainingLogger():
-    def __init__(self, nb_epochs, batch_size, sample_size):
+    def __init__(self, nb_epochs, batch_size, sample_size, val_size):
         self.epoch_nb = 0
         self.log = dict()
         self.batch_size = batch_size
         self.nb_epochs = nb_epochs
         self.epoch_size = sample_size
+        self.val_size = val_size
 
 
     def add_iteration(self, step, loss, _time):
@@ -96,7 +97,7 @@ class TrainingLogger():
 
 
     def init_epoch(self, epoch):
-        if epoch > 0: print("Epoch complete. Validation loss: ", self.batch_size* self.log[epoch -1]["val_loss"] / self.epoch_size)
+        if epoch > 0: print("Epoch complete. Validation loss: ", self.batch_size* self.log[epoch -1]["val_loss"] / self.val_size)
         print("Epoch: ", epoch)
         self.epoch_nb = epoch
         self.log[epoch] = {"loss": 0, 'time': 0, "val_loss": 0, "val_time": 0}

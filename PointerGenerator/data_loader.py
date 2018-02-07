@@ -126,17 +126,17 @@ def load_data(file_path, source_field, target_field):
     return text_pairs
 
 
-path = '/home/havikbot/MasterThesis/Data/NYTcorpus/with_abstract/tokenized/'+"*.txt"
-out_path = '/home/havikbot/MasterThesis/Data/NYTcorpus/with_abstract/model_data/'
+path = '/srv/havikbot/MasterThesis/Data/filtered/'+"*.txt"
+out_path = '/srv/havikbot/MasterThesis/Data/'
 
-dataset = DataSet('NYT')
+dataset = DataSet('NYT_filtered')
 
 def create_and_save_dataset(dataset):
-    dataset = DataSet('DailyMail_summary')
+    dataset = DataSet('NYtimes_filtered_40k')
     dataset.create_dataset(path, 'tok_text_content', 'tok_summary_items', 40000)
 
     import pickle
-    with open(out_path + 'NYT_40k_summary_v3.pickle', 'wb') as handle:
+    with open(out_path + 'NYT_40k_filtered_v1.pickle', 'wb') as handle:
         pickle.dump(dataset, handle, protocol=pickle.HIGHEST_PROTOCOL)
 
 
