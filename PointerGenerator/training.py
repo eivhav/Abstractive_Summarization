@@ -6,10 +6,10 @@ import torch
 import sys, os
 sys.path.append('/srv/havikbot/MasterThesis/Code/Abstractive_Summarization/')
 
-#from PointerGenerator.model import *
-#from PointerGenerator.data_loader import *
-from model import *
-from data_loader import *
+from PointerGenerator.model import *
+from PointerGenerator.data_loader import *
+#from model import *
+#from data_loader import *
 
 use_cuda = torch.cuda.is_available()
 

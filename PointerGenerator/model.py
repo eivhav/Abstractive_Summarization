@@ -3,12 +3,12 @@ from __future__ import unicode_literals, print_function, division
 import random
 import time
 
-import utils as utils
-from utils import *
-from pointer_gen import *
-#import PointerGenerator.utils as utils
-#from PointerGenerator.utils import *
-#from PointerGenerator.pointer_gen import *
+#import utils as utils
+#from utils import *
+#from pointer_gen import *
+import PointerGenerator.utils as utils
+from PointerGenerator.utils import *
+from PointerGenerator.pointer_gen import *
 
 
 class PGModel():
