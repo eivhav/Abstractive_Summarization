@@ -154,7 +154,23 @@ Biography 24
 unknown:
 Letter 652
 
+filtered_data = dict()
+for key in data:
+    if key in exclude:
+        if exclude[key].strip() in ['Editorial', 'Op-Ed']: filtered_data[key] = data[key]
+    else:
+        filtered_data[key] = data[key]
 
+types = dict()
+for key in exclude:
+    if exclude[key] not in types: types[exclude[key]] = 0
+    types[exclude[key]] += 1
+
+count = 0
+for k in types:
+    if types[k] > 1000:
+        print(k, types[k])
+        count += types[k]
 
 
 
@@ -165,7 +181,12 @@ Letter 652
 
 '''
 
-
+parts = []
+for i in range(100): parts.append(dict())
+count = 0
+for k in filtered_data:
+    parts[count % 100][k] = filtered_data[k]
+    count += 1
 
 
 
