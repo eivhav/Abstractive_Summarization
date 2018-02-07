@@ -7,6 +7,7 @@ import torch.nn as nn
 from torch.autograd import Variable
 import sys
 import math
+import random
 
 
 def zero_pad(tokens, len_limit):
@@ -55,6 +56,23 @@ def get_batch_variables(samples, input_length, target_length, use_cuda, SOS_toke
     else:
         return input_variable, full_input_variable, target_variable, full_target_variable, decoder_input
 
+
+def sort_and_shuffle_data(samples, nb_buckets, batch_size):
+    sorted_samples = sorted(samples, key=lambda pair: len(pair.masked_source_tokens))
+    bucket_size = int(len(samples) / nb_buckets)
+    buckets = [sorted_samples[bucket_size*i:bucket_size*(i+1)] for i in range(nb_buckets)]
+    random.shuffle(buckets)
+    batches = []
+    for b in buckets:
+        random.shuffle(b)
+        batches += [b[batch_size*i:batch_size*(i+1)] for i in range(int(len(b) / batch_size))]
+    return batches
+
+
+
+
+
+
 class TrainingLogger():
     def __init__(self, nb_epochs, batch_size, sample_size):
         self.epoch_nb = 0
@@ -95,6 +113,7 @@ class TrainingLogger():
         sys.stdout.flush()
 
 
+
 class Beam():
     def __init__(self, decoder_input, decoder_h_states, decoder_hidden, previous_att, log_probs, sequence):
         self.decoder_input = decoder_input
@@ -111,9 +130,6 @@ class Beam():
         for p in [-math.log(log_prob) for log_prob in self.log_probs]:
             score += p
         return score
-
-
-
 
 
 

@@ -57,7 +57,7 @@ class AttnDecoderRNN(nn.Module):
             self.out_vocab.weight = embedding_weight
 
     def forward(self, input_token, last_decoder_hidden, encoder_states, full_input_var, use_cuda):
-        #print(input_token, last_decoder_hidden, encoder_states, full_input_var, use_cuda)
+
         embedded_input = self.embedding(input_token)
         embedded_input = self.dropout(embedded_input)
         decoder_output, decoder_hidden = self.gru(embedded_input, torch.unsqueeze(last_decoder_hidden, 0))

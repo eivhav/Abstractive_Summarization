@@ -4,18 +4,14 @@ import pickle
 
 import torch
 
-from DeepRL.deepRL_model import *
-
+from PointerGenerator.model import *
+from PointerGenerator.data_loader import *
 
 use_cuda = torch.cuda.is_available()
 
-data_path = '/home/havikbot/MasterThesis/Data/CNN_dailyMail/DailyMail/model_datasets/'
-path_2 = '/home/shomea/h/havikbot/MasterThesis/Data/'
-path_3 = '/home/havikbot/MasterThesis/Data/'
-path4 = '/home/havikbot/MasterThesis/Data/NYTcorpus/with_abstract/model_data/'
+norm_path = '/home/havikbot/MasterThesis/Data/'
 samuel_path = '/srv/havikbot/MasterThesis/Data/'
-
-model_path = '/home/shomea/h/havikbot/MasterThesis/Models/DeepRL/'
+model_path = '/srv/havikbot/MasterThesis/Models/'
 data_set_name_dm = 'DM_25k_summary_v2.pickle'
 data_set_name_nyt = 'NYT_40k_summary_v3.pickle'
 
@@ -28,22 +24,11 @@ test_pairs = dataset.summary_pairs[int(len(dataset.summary_pairs)*0.8):]
 
 config = {'model_type': 'CoverageAttn',
           'embedding_size': 200, 'hidden_size': 400,
-          'input_length': 300, 'target_length': 75,
+          'input_length': 300, 'target_length': 50,
           'model_path': model_path, 'model_id': 'CombinedTest' }
 
 
-pointer_gen_model = PGCModel(config=config, vocab=dataset.vocab, use_cuda=use_cuda)
-
-pointer_gen_model.train(data=training_pairs, val_data=test_pairs,
-                        nb_epochs=25, batch_size=50,
-                        optimizer=torch.optim.Adam, lr=0.001,
-                        tf_ratio=0.5, stop_criterion=None,
-                        use_cuda=True, print_evry=500
-                        )
-
-
-
-
+pointer_gen_model = PGModel(config=config, vocab=dataset.vocab, use_cuda=use_cuda)
 pointer_gen_model.load_model(file_path='/srv/havikbot/MasterThesis/Models/',
                               file_name='checkpoint_DeepRL_nyt_ep@.pickle')
 
@@ -66,4 +51,4 @@ with open(samuel_path + "100_preds.json", 'w') as f: f.write(json.dumps(results)
 
 
 
-#pointer_gen_model.save_model(path='/srv/havikbot/MasterThesis/Models/', id ='DeepRL_valid', loss=-1, epoch=-1)
+#pointer_gen_model.

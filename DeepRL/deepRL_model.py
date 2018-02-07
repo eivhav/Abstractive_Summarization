@@ -10,6 +10,7 @@ import utils as utils
 import shutil
 #
 
+
 class EncoderRNN(nn.Module):
     def __init__(self, vocab_size, hidden_size):
         super(EncoderRNN, self).__init__()
@@ -25,6 +26,7 @@ class EncoderRNN(nn.Module):
     def init_hidden(self, batch_size, use_cuda):
         if use_cuda: return Variable(torch.zeros(2, batch_size, self.hidden_size)).cuda()
         else: return Variable(torch.zeros(2, batch_size, self.hidden_size))
+
 
 class AttnDecoderRNN(nn.Module):
     def __init__(self, hidden_size, embedding_size, vocab_size,
@@ -102,8 +104,6 @@ class AttnDecoderRNN(nn.Module):
 
         decoder_h_states = torch.cat((prev_decoder_h_states, decoder_hidden.unsqueeze(1)), 1)
         return p_final, p_gen, p_vocab, att_dist, decoder_h_states, decoder_hidden, previous_att
-
-
 
     def init_hidden(self, use_cuda):
         result = Variable(torch.zeros(1, 1, self.hidden_size))
