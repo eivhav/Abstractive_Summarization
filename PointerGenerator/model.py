@@ -69,16 +69,16 @@ class PGModel():
 
         for epoch in range(len(self.logger.log), nb_epochs):
             self.logger.init_epoch(epoch)
-            batches = utils.sort_and_shuffle_data(data, nb_buckets=100, batch_size=batch_size)
+            batches = utils.sort_and_shuffle_data(data, nb_buckets=100, batch_size=batch_size, rnd=False)
             for b in range(len(batches)):
-                try:
-                    loss, _time = self.train_batch(samples=batches[b], use_cuda=self.use_cuda)
-                    self.logger.add_iteration(b+1, loss, _time)
-                    if b % print_evry == 0:
-                        preds = self.predict([data[b*batch_size]], self.config['target_length'], False, self.use_cuda)
-                        print('\n', " ".join([t[0]['word'] for t in preds]))
-                except:
-                    print("\n", "Error for batch ", b, " size:", len(batches[b]))
+                #try:
+                loss, _time = self.train_batch(samples=batches[b], use_cuda=self.use_cuda)
+                self.logger.add_iteration(b+1, loss, _time)
+                if b % print_evry == 0:
+                    preds = self.predict([data[b*batch_size]], self.config['target_length'], False, self.use_cuda)
+                    print('\n', " ".join([t[0]['word'] for t in preds]))
+                #except:
+                    #print("\n", "Error for batch ", b, " size:", len(batches[b]))
             for b in range(int(len(val_data)/batch_size)):
                 try:
                     loss, _time = self.train_batch(val_data[b*batch_size:(b+1)*batch_size], self.use_cuda, backprop=False)
@@ -95,7 +95,7 @@ class PGModel():
         start = time.time()
         if len(samples) == 0: return 0, 0
 
-        target_length = max([len(pair.masked_target_tokens) for pair in samples])
+        target_length = min(self.config['target_length'], max([len(pair.masked_target_tokens) for pair in samples]))
         input_variable, full_input_variable, target_variable, full_target_variable, decoder_input = \
             utils.get_batch_variables(samples, self.config['input_length'], target_length, use_cuda,
                                       self.vocab.word2index['SOS'])
@@ -110,7 +110,7 @@ class PGModel():
         decoder_hidden_states = torch.cat((encoder_hidden[0], encoder_hidden[1]), -1).unsqueeze(1)
         previous_att = None
 
-        for token_i in range(min(target_length, self.config['target_length'])):
+        for token_i in range(target_length):
             p_final, p_gen, p_vocab, att_dist, decoder_h_states, decoder_hidden, previous_att = \
                 self.decoder(decoder_input, decoder_hidden_states, decoder_hidden, encoder_outputs, full_input_variable, previous_att, use_cuda)
 

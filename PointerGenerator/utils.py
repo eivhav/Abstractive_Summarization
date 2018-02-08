@@ -57,14 +57,14 @@ def get_batch_variables(samples, input_length, target_length, use_cuda, SOS_toke
         return input_variable, full_input_variable, target_variable, full_target_variable, decoder_input
 
 
-def sort_and_shuffle_data(samples, nb_buckets, batch_size):
+def sort_and_shuffle_data(samples, nb_buckets, batch_size, rnd=True):
     sorted_samples = sorted(samples, key=lambda pair: len(pair.masked_target_tokens))
     bucket_size = int(len(samples) / nb_buckets)
     buckets = [sorted_samples[bucket_size*i:bucket_size*(i+1)] for i in range(nb_buckets)]
-    random.shuffle(buckets)
+    if rnd: random.shuffle(buckets)
     batches = []
     for b in buckets:
-        random.shuffle(b)
+        if rnd: random.shuffle(b)
         batches += [b[batch_size*i:batch_size*(i+1)] for i in range(int(len(b) / batch_size))]
     return batches
 
