@@ -71,15 +71,20 @@ class PGModel():
             self.logger.init_epoch(epoch)
             batches = utils.sort_and_shuffle_data(data, nb_buckets=100, batch_size=batch_size)
             for b in range(len(batches)):
-                loss, _time = self.train_batch(samples=batches[b], use_cuda=self.use_cuda)
-                self.logger.add_iteration(b+1, loss, _time)
-                if b % print_evry == 0:
-                    preds = self.predict([data[b*batch_size]], self.config['target_length'], False, self.use_cuda)
-                    print('\n', " ".join([t[0]['word'] for t in preds]))
-
+                try:
+                    loss, _time = self.train_batch(samples=batches[b], use_cuda=self.use_cuda)
+                    self.logger.add_iteration(b+1, loss, _time)
+                    if b % print_evry == 0:
+                        preds = self.predict([data[b*batch_size]], self.config['target_length'], False, self.use_cuda)
+                        print('\n', " ".join([t[0]['word'] for t in preds]))
+                except:
+                    print("\n", "Error for batch ", b, " size:", len(batches[b]))
             for b in range(int(len(val_data)/batch_size)):
-                loss, _time = self.train_batch(val_data[b*batch_size:(b+1)*batch_size], self.use_cuda, backprop=False)
-                self.logger.add_val_iteration(b+1, loss, _time)
+                try:
+                    loss, _time = self.train_batch(val_data[b*batch_size:(b+1)*batch_size], self.use_cuda, backprop=False)
+                    self.logger.add_val_iteration(b+1, loss, _time)
+                except:
+                    print("\n", "Error during validation!")
 
             if epoch == 0 or self.logger.log[epoch]["val_loss"] < self.logger.log[epoch-1]["val_loss"]:
                 self.save_model(self.config['model_path'], self.config['model_id'],

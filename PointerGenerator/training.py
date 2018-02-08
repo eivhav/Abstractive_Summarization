@@ -26,7 +26,7 @@ test_pairs = dataset.summary_pairs[int(len(dataset.summary_pairs)*0.9):]
 
 # 'TemporalAttn' or CoverageAttn
 
-config = {'model_type': 'CoverageAttn',
+config = {'model_type': 'TemporalAttn',
           'embedding_size': 200, 'hidden_size': 400,
           'input_length': 400, 'target_length': 75,
           'model_path': model_path, 'model_id': 'PGC_NYTfiltered_8_feb' }
@@ -38,6 +38,6 @@ pointer_gen_model.train(data=training_pairs, val_data=test_pairs,
                         nb_epochs=25, batch_size=50,
                         optimizer=torch.optim.Adam, lr=0.001,
                         tf_ratio=0.6, stop_criterion=None,
-                        use_cuda=True, print_evry=50
+                        use_cuda=True, print_evry=200
                         )
 
