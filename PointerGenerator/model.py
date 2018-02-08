@@ -3,6 +3,9 @@ from __future__ import unicode_literals, print_function, division
 import random
 import time
 
+#import utils as utils
+#from utils import *
+#from pointer_gen import *
 import PointerGenerator.utils as utils
 from PointerGenerator.utils import *
 from PointerGenerator.pointer_gen import *
@@ -45,7 +48,7 @@ class PGModel():
             'encoder': self.encoder.state_dict(), 'decoder': self.decoder.state_dict(),
             'encoder_optm': self.encoder_optimizer.state_dict(),'decoder_optm': self.decoder_optimizer.state_dict()
         }
-        filename= path + "checkpoint_" + id + "_ep@.pickle"
+        filename= path + "checkpoint_" + id + "_ep@"+str(epoch)+"_loss@"+str(round(loss, 3))+".pickle"
         torch.save(data, filename)
 
     def load_model(self, file_path, file_name):
@@ -61,7 +64,7 @@ class PGModel():
             self.encoder_optimizer = optimizer(self.encoder.parameters(), lr= lr, weight_decay=0.0000001)
             self.decoder_optimizer = optimizer(self.decoder.parameters(), lr= lr, weight_decay=0.0000001)
             self.criterion = nn.NLLLoss()
-            self.logger = TrainingLogger(nb_epochs, batch_size, len(data))
+            self.logger = TrainingLogger(nb_epochs, batch_size, len(data), len(val_data))
             print("Optimizers compiled")
 
         for epoch in range(len(self.logger.log), nb_epochs):
@@ -75,7 +78,7 @@ class PGModel():
                     preds = self.predict([data[b*batch_size]], self.config['target_length'], False, self.use_cuda)
                     print('\n', " ".join([t[0]['word'] for t in preds]))
 
-            for b in range(int(len(data)/batch_size)):
+            for b in range(int(len(val_data)/batch_size)):
                 loss, _time = self.train_batch(val_data[b*batch_size:(b+1)*batch_size], self.use_cuda, backprop=False)
                 self.logger.add_val_iteration(b+1, loss, _time)
 
@@ -84,7 +87,7 @@ class PGModel():
                                 epoch=epoch, loss=self.logger.log[epoch]["val_loss"])
 
 
-    def train_batch(self, samples, use_cuda, tf_ratio=0.5, backprop=True):
+    def train_batch(self, samples, use_cuda, tf_ratio=0.5, backprop=True, coverage_lambda=-1):
         start = time.time()
         if len(samples) == 0: return 0, 0
 
@@ -106,7 +109,16 @@ class PGModel():
         for token_i in range(min(target_length, self.config['target_length'])):
             p_final, p_gen, p_vocab, att_dist, decoder_h_states, decoder_hidden, previous_att = \
                 self.decoder(decoder_input, decoder_hidden_states, decoder_hidden, encoder_outputs, full_input_variable, previous_att, use_cuda)
-            loss += self.criterion(torch.log(p_final.clamp(min=1e-8)), full_target_variable.narrow(1, token_i, 1).squeeze(-1))
+
+            if coverage_lambda < 0 or token_i == 0:
+                loss += self.criterion(torch.log(p_final.clamp(min=1e-8)), full_target_variable.narrow(1, token_i, 1)
+                                       .squeeze(-1))
+            else:
+                coverage = previous_att.narrow(1, 0, previous_att.size()[1]-1).sum(dim=1)
+                coverage_min, _ = torch.cat((att_dist.unsqueeze(1), coverage.unsqueeze(1)), dim=1).min(dim=1)
+                coverage_loss = coverage_min.sum(-1)
+                loss += self.criterion(torch.log(p_final.clamp(min=1e-8)), full_target_variable.narrow(1, token_i, 1).squeeze(-1))\
+                        + (coverage_lambda * coverage_loss) # this needs to be fixed
 
             if random.uniform(0, 1) < tf_ratio: decoder_input = target_variable.narrow(1, token_i, 1)
             else:
