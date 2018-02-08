@@ -68,7 +68,6 @@ class PGModel():
             print("Optimizers compiled")
 
         for epoch in range(len(self.logger.log), nb_epochs):
-            random.shuffle(data)
             self.logger.init_epoch(epoch)
             batches = utils.sort_and_shuffle_data(data, nb_buckets=100, batch_size=batch_size)
             for b in range(len(batches)):
