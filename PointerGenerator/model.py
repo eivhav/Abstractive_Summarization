@@ -96,7 +96,8 @@ class PGModel():
         if len(samples) == 0: return 0, 0
 
         target_length = min(self.config['target_length'], max([len(pair.masked_target_tokens) for pair in samples]))
-        input_variable, full_input_variable, target_variable, full_target_variable, decoder_input = \
+        nb_unks = max([len(s.unknown_tokens) for s in samples])
+        input_variable, full_input_variable, target_variable, full_target_variable, decoder_input, nb_unks = \
             utils.get_batch_variables(samples, self.config['input_length'], target_length, use_cuda,
                                       self.vocab.word2index['SOS'])
 
@@ -112,7 +113,8 @@ class PGModel():
 
         for token_i in range(target_length):
             p_final, p_gen, p_vocab, att_dist, decoder_h_states, decoder_hidden, previous_att = \
-                self.decoder(decoder_input, decoder_hidden_states, decoder_hidden, encoder_outputs, full_input_variable, previous_att, use_cuda)
+                self.decoder(decoder_input, decoder_hidden_states, decoder_hidden, encoder_outputs,
+                             full_input_variable, previous_att, nb_unks, use_cuda)
 
             if coverage_lambda < 0 or token_i == 0:
                 loss += self.criterion(torch.log(p_final.clamp(min=1e-8)), full_target_variable.narrow(1, token_i, 1)
@@ -141,6 +143,7 @@ class PGModel():
 
 
     def predict(self, samples, target_length, beam_size, use_cuda): # this only works with one sample at a time
+        nb_unks = max([len(s.unknown_tokens) for s in samples])
         input_variable, full_input_variable, target_variable, full_target_variable, decoder_input = \
             utils.get_batch_variables(samples, self.config['input_length'], target_length, use_cuda,
                                       self.vocab.word2index['SOS'])
@@ -156,7 +159,7 @@ class PGModel():
 
                 p_final, p_gen, p_vocab, att_dist, decoder_h_states, decoder_hidden, previous_att = \
                     self.decoder(decoder_input, decoder_h_states, decoder_hidden,
-                                 encoder_outputs, full_input_variable, previous_att, use_cuda)
+                                 encoder_outputs, full_input_variable, previous_att, nb_unks, use_cuda)
 
                 p_vocab_word, vocab_word_idx = p_final.max(1)
                 result.append([{'token_idx': vocab_word_idx.data[i],
@@ -180,7 +183,7 @@ class PGModel():
                     else:
                         p_final, p_gen, p_vocab, att_dist, decoder_h_states, decoder_hidden, previous_att = \
                             self.decoder(beam.decoder_input, beam.decoder_h_states, beam.decoder_hidden,
-                                         encoder_outputs, full_input_variable, beam.previous_att, use_cuda)
+                                         encoder_outputs, full_input_variable, beam.previous_att, nb_unks, use_cuda)
                         for k in range(beam_size):
                             p_vocab_word, vocab_word_idx = p_final.max(1)
                             _, max_tokens = p_final.max(1)

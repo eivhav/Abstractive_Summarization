@@ -56,7 +56,7 @@ class CoverageAttnDecoderRNN(nn.Module):
             self.out_vocab.weight = embedding_weight
 
     def forward(self, input_token, prev_decoder_h_states, last_hidden, encoder_states, full_input_var,
-                previous_att, use_cuda):
+                previous_att, nb_unk_tokens, use_cuda):
 
         embedded_input = self.embedding(input_token)
         embedded_input = self.dropout(embedded_input)
@@ -81,8 +81,8 @@ class CoverageAttnDecoderRNN(nn.Module):
         p_vocab = F.softmax(self.out_vocab(self.out_hidden(combined_context)), dim=-1)
         p_gen = F.sigmoid(self.gen_layer(torch.cat((combined_context, torch.squeeze(embedded_input, 1)), 1)))
 
-        token_input_dist = Variable(torch.zeros((full_input_var.size()[0], self.vocab_size+500)))
-        padding_matrix_2 = Variable(torch.zeros(full_input_var.size()[0], 500))
+        token_input_dist = Variable(torch.zeros((full_input_var.size()[0], self.vocab_size+nb_unk_tokens)))
+        padding_matrix_2 = Variable(torch.zeros(full_input_var.size()[0], nb_unk_tokens))
         if use_cuda:
             token_input_dist = token_input_dist.cuda()
             padding_matrix_2 = padding_matrix_2.cuda()
@@ -126,7 +126,8 @@ class TemporalAttnDecoderRNN(nn.Module):
         if embedding_weight is not None:
             self.out_vocab.weight = embedding_weight
 
-    def forward(self, input_token, prev_decoder_h_states, last_hidden, encoder_states, full_input_var, previous_att, use_cuda):
+    def forward(self, input_token, prev_decoder_h_states, last_hidden, encoder_states,
+                full_input_var, previous_att, nb_unk_tokens, use_cuda):
         embedded_input = self.embedding(input_token)
         embedded_input = self.dropout(embedded_input)
         decoder_output, decoder_hidden = self.gru(embedded_input, torch.unsqueeze(last_hidden, 0))
@@ -157,8 +158,8 @@ class TemporalAttnDecoderRNN(nn.Module):
         p_vocab = F.softmax(self.out_vocab(self.out_hidden(combined_context)), dim=-1) # replace with embedding weight
         p_gen = F.sigmoid(self.gen_layer(combined_context))
 
-        token_input_dist = Variable(torch.zeros((full_input_var.size()[0], self.vocab_size+500)))
-        padding_matrix_2 = Variable(torch.zeros(full_input_var.size()[0], 500))
+        token_input_dist = Variable(torch.zeros((full_input_var.size()[0], self.vocab_size+nb_unk_tokens)))
+        padding_matrix_2 = Variable(torch.zeros(full_input_var.size()[0], nb_unk_tokens))
         if use_cuda:
             token_input_dist = token_input_dist.cuda()
             padding_matrix_2 = padding_matrix_2.cuda()
