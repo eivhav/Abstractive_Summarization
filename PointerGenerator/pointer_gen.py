@@ -81,8 +81,8 @@ class CoverageAttnDecoderRNN(nn.Module):
         p_vocab = F.softmax(self.out_vocab(self.out_hidden(combined_context)), dim=-1)
         p_gen = F.sigmoid(self.gen_layer(torch.cat((combined_context, torch.squeeze(embedded_input, 1)), 1)))
 
-        token_input_dist = Variable(torch.zeros((full_input_var.size()[0], self.vocab_size+nb_unk_tokens)))
-        padding_matrix_2 = Variable(torch.zeros(full_input_var.size()[0], nb_unk_tokens))
+        token_input_dist = Variable(torch.zeros((full_input_var.size()[0], self.vocab_size+nb_unk_tokens+200)))
+        padding_matrix_2 = Variable(torch.zeros(full_input_var.size()[0], nb_unk_tokens+200))
         if use_cuda:
             token_input_dist = token_input_dist.cuda()
             padding_matrix_2 = padding_matrix_2.cuda()

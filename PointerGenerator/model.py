@@ -69,7 +69,7 @@ class PGModel():
 
         for epoch in range(len(self.logger.log), nb_epochs):
             self.logger.init_epoch(epoch)
-            batches = utils.sort_and_shuffle_data(data, nb_buckets=100, batch_size=batch_size, rnd=False)
+            batches = utils.sort_and_shuffle_data(data, nb_buckets=100, batch_size=batch_size, rnd=True)
             for b in range(len(batches)):
                 #try:
                 loss, _time = self.train_batch(samples=batches[b], use_cuda=self.use_cuda)
@@ -97,7 +97,7 @@ class PGModel():
 
         target_length = min(self.config['target_length'], max([len(pair.masked_target_tokens) for pair in samples]))
         nb_unks = max([len(s.unknown_tokens) for s in samples])
-        input_variable, full_input_variable, target_variable, full_target_variable, decoder_input, nb_unks = \
+        input_variable, full_input_variable, target_variable, full_target_variable, decoder_input = \
             utils.get_batch_variables(samples, self.config['input_length'], target_length, use_cuda,
                                       self.vocab.word2index['SOS'])
 
@@ -137,7 +137,6 @@ class PGModel():
             loss.backward()
             self.encoder_optimizer.step()
             self.decoder_optimizer.step()
-
         return loss.data[0] / target_length, time.time() - start
 
 
