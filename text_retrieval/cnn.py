@@ -112,7 +112,9 @@ def ParseHtml(story, corpus):
 
     xpaths = map(tree.xpath, selector)
     elements = list(chain.from_iterable(xpaths))
-    paragraphs = [str(e.text_content().encode('utf-8')) for e in elements]
+    #paragraphs = [str(e.text_content().encode('utf-8')) for e in elements]
+    paragraphs = [e.text_content() for e in elements]
+
 
     # Remove editorial notes, etc.
     if corpus == 'cnn' and len(paragraphs) >= 2 and '(CNN)' in paragraphs[1]:
@@ -134,11 +136,6 @@ def ParseHtml(story, corpus):
 
   return Story(story.url, content, highlights)
 
-path = '/home/havikbot/MasterThesis/Data/CNN_dailyMail/CNN/sample/'
-sample_file = '280fdbccf37dd317250c09f3b73609ce0a31e227.html'
-
-
-
 
 
 
@@ -153,8 +150,6 @@ def StoreMapper(path, file_id, corpus):
     A Story containing the parsed news story.
   """
   char_type = chardet.detect(open(path+file_id, 'rb').read())['encoding']
-  print(char_type)
-
   story_html = open(path+file_id, 'rb').read()
 
   if not story_html:
@@ -162,19 +157,68 @@ def StoreMapper(path, file_id, corpus):
 
   raw_story = RawStory(file_id, story_html)
 
-  return ParseHtml(raw_story, corpus)
+  return ParseHtml(raw_story, corpus), char_type
 
 
-story = StoreMapper(path, sample_file, 'cnn')
+def load_and_parse_cnn(path, file_name):
+    article = dict()
+    story, char_type = StoreMapper(path, file_name, 'cnn')
+    article['summary_items'] = [s.strip().replace('NEW:', "").strip() for s in story.highlights if len(s) > 10]
+    article['text_content'] = " ".join([s.strip() for s in story.content.split("\n") if len(s) > 10])
+    if '(CNN)' in article['text_content']:
+        article['text_content'] = "".join(article['text_content'].split('(CNN)')[1:])
+    article['headline'] = ''
+    article['timestamp_pub'] = '0'
+    return article
 
-summary_items = [s.strip().replace('NEW:', "") for s in story.highlights if len(s) > 10]
-for s in summary_items: print("*", s.strip()[2:-1].replace("\\'", "'"))
 
 
-print()
-text_content = [s.strip() for s in story.content.split("\n") if len(s) > 10]
-for s in text_content:
-    print(s.strip()[2:-1].replace("\\'", "'"))
+import json, glob
+from multiprocessing import Process
+
+
+def decode_and_write_cnn_to_json(file_names, path, out_path, p_id):
+    count = 0
+    data = dict()
+    for file_name in file_names:
+        count += 1
+        if count % 1000 == 0:
+            print(p_id, count)
+            with open(out_path+"CNN_"+str(int(count/1000)) + "000_"+str(p_id)+".txt", "w") as handle:
+                handle.write(json.dumps(data))
+                pass
+            data = dict()
+
+        try:
+            data[file_name] = load_and_parse_cnn(path, file_name)
+        except:
+            print("Error with decoding file")
+
+    if len(data) != 0:
+        with open(out_path + "CNN_last" + str(p_id) + ".txt", "w") as handle:
+            handle.write(json.dumps(data))
+
+
+
+if __name__ == '__main__':
+    path = '/home/havikbot/MasterThesis/Data/CNN_dailyMail/CNN/downloads/'
+    out_path = '/home/havikbot/MasterThesis/Data/CNN_dailyMail/CNN/extracted/'
+    file_names = [f[len(path):] for f in list(glob.iglob(path+"*.html"))]
+
+    nb_processes = 8
+    tasks = []
+    for i in range(nb_processes): tasks.append([])
+    processes = []
+    for i in range(len(file_names)): tasks[i % nb_processes].append(file_names[i])
+    for p in range(nb_processes):
+        proc = Process(target=decode_and_write_cnn_to_json, args=(tasks[p], path, out_path, p))
+        proc.start()
+        processes.append(proc)
+    for p in processes: p.join()
+
+
+
+
 
 
 

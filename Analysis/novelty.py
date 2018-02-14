@@ -10,10 +10,13 @@ for f in files:
 def compute_n_grams(text, n):
     return {"~".join([text[i+k] for k in range(n)]): True for i in range(len(text) -n+1)}
 
+
 def process_and_split_text(text):
     return [t for t in text.lower().replace(" '", "").replace(", ", "").replace(" _", " ").split(" ") if t != ""]
 
+
 def unicode_norm(s): return unicodedata.normalize("NFKD", s)
+
 
 def compute_novelty(summary, text_content, n_gram_n):
     text_n_grams = compute_n_grams(process_and_split_text(unicode_norm(text_content)), n_gram_n)

@@ -9,6 +9,8 @@ import unicodedata
 import re
 
 
+
+
 def unicode_to_ascii(s): return ''.join(c for c in unicodedata.normalize('NFD', s) if unicodedata.category(c) != 'Mn')
 
 
@@ -26,6 +28,10 @@ def split_char_numbers(word_list):
 # 1.25billion still a problem.
 # Maybe do something about (son _ in _ law, x _ year _ old )
 '''
+
+
+
+
 
 def tokenize_data(path, data, nlp, keys, p_id):
     count = 0
@@ -89,11 +95,79 @@ def tokenize_nyt(path, nlp, articles, p_id):
     with open(path+ "tokenized/"+"NYT_tok_last"+str(p_id)+".txt", "w") as handle:
         handle.write(json.dumps(results))
 
+import time, re
+
+def tokenize_text(nlp, text):
+    text = text.replace("(S)", "").replace("(M)", "").replace("‘", "'").replace("’", "'")
+    text = remove_http_url(text)
+    text = text.replace("   ", " ").replace("  ", " ")
+    return " ".join([t.text for t in nlp(text)]).replace("' '", "''")
+
+
+def fix_tokenized_4(text):
+    text = text.replace(". ' .", ". '").replace("' '", "''")
+    matchObj = re.search(r'\d\s[_]\w', text)
+    while matchObj is not None:
+        text = text.replace(matchObj.group(), matchObj.group().replace(" _", "-"))
+        matchObj = re.search(r'\d\s[_]\w', text)
+    return text.replace("_", " - ").replace("  ", " ")
+
+
+
+
+
+
+    '''
+    words = text.split()
+    result = [words[0]]
+    for i in range(1, len(words)):
+        if "_" == words[i][0] and words[i-1][-1].isdigit():
+            result[i-1] = words[i-1] +
+    '''
+
+
+def tokenize_data_common(out_path, nlp, articles, p_id, corpus):
+    count = 0
+    results = dict()
+    start = time.time()
+    for article, key in articles:
+        if 'summary_items' not in article.keys() or 'headline' not in article.keys(): continue
+        count += 1
+        if count % 1000 == 0:
+            with open(out_path+ "tokenized_c/"+corpus+"_tok_"+str(int(count/1000)) + "000_"+str(p_id)+".txt", "w") as handle:
+                handle.write(json.dumps(results))
+            results = dict()
+
+        results[key] = article
+        for type in ['headline', 'summary_items', 'text_content']:
+            if isinstance(article[type], list):
+                if type == 'summary_items': text = ". ".join(s.strip() for s in article[type] if len(s) > 10)
+                elif type == 'text_content': text = " ".join(s.strip() for s in article[type])
+                elif type == 'headline': text = article[type][0]
+            else:
+                text = article[type]
+            text = text.replace("(S)", "").replace("(M)", "").replace("‘", "'").replace("’", "'")
+            text = remove_http_url(text)
+            text = text.replace("   ", " ").replace("  ", " ")
+            results[key]['tok_' + type] = " ".join([t.text for t in nlp(text)]).replace("' '", "''")
+
+        if count % 250 == 0:
+            print(p_id, count, 100*count/len(articles), time.time() - start)
+
+
+    with open(out_path+ "tokenized_c/"+corpus+"_tok_last"+str(p_id)+".txt", "w") as handle:
+        handle.write(json.dumps(results))
+
+
+
+
+
 
 if __name__ == '__main__':
-    path = "/home/havikbot/MasterThesis/Data/NYTcorpus/with_abstract/"
+    corpus = 'DailyMail'
+    path = "/srv/havikbot/MasterThesis/Data/" + corpus + "/"
 
-    extracted_files = list(glob.iglob(path+"data_json/"+"*.txt"))
+    extracted_files = list(glob.iglob(path+"extracted/"+"*.txt"))
     data = dict()
     count = 0
     for file in extracted_files:
@@ -114,7 +188,10 @@ if __name__ == '__main__':
 
     for p in range(nb_processes):
         nlp = spacy.load('en')
-        proc = Process(target=tokenize_nyt, args=(path, nlp, tasks[p], p))
+        proc = Process(target=tokenize_data_common, args=(path, nlp, tasks[p], p, corpus))
         proc.start()
         proc = processes.append(proc)
     for p in processes: p.join()
+
+
+
