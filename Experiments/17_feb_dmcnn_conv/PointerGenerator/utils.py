@@ -116,7 +116,6 @@ class TrainingLogger():
 
 
 
-
 class Beam():
     def __init__(self, decoder_input, decoder_h_states, decoder_hidden, previous_att, log_probs, sequence):
         self.decoder_input = decoder_input
@@ -145,6 +144,8 @@ class Beam():
         for p in [-math.log(log_prob) for log_prob in self.log_probs]:
             score += p
         return score
+
+
 
 
 

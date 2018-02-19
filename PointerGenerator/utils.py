@@ -129,9 +129,23 @@ class Beam():
 
     def compute_score(self):
         score = 1
+
+        def check_trigram(tri, seq):
+            for i in range(3):
+                if tri[i] != seq[i]: return False
+            return True
+
+        def check_repeats():
+            for i in range(max(0, len(self.sequence) - 4), -1, -1):
+                if check_trigram(self.sequence[-3:], self.sequence[i:i+3]): return True
+
+        if check_repeats(): return 1e7
+
         for p in [-math.log(log_prob) for log_prob in self.log_probs]:
             score += p
         return score
+
+
 
 
 

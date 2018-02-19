@@ -4,6 +4,7 @@ import pickle
 
 import torch
 import sys, os
+import spacy
 
 samuel = '/srv/'
 x99 = '/home/'
@@ -32,35 +33,67 @@ test_pairs = dataset.summary_pairs[int(len(dataset.summary_pairs)*0.9):]
 
 # 'TemporalAttn' or CoverageAttn
 
-config = {'model_type': 'CoverageAttn',
-          'embedding_size': 200, 'hidden_size': 400,
+config = {'model_type': 'TemporalAttn',
+          'embedding_size': 100, 'hidden_size': 400,
           'input_length': 400, 'target_length': 50,
           'model_path': model_path, 'model_id': 'CombinedTest' }
 
 
 pointer_gen_model = PGModel(config=config, vocab=dataset.vocab, use_cuda=use_cuda)
 pointer_gen_model.load_model(file_path='/srv/havikbot/MasterThesis/Models/',
-                              file_name='checkpoint_PGC_NYTfiltered_9_feb_ep@9_loss@2859.406.pickle')
+                              file_name='checkpoint_NYTtempAttn60_11_feb_ep@20_loss@3350.563.pickle')
 
 
-results = dict()
-for i in range(1010, 1015 ):
-    print(i)
-    pair = test_pairs[i]
-    pred = pointer_gen_model.predict([pair], 75, False, use_cuda)
-    pred_beam = pointer_gen_model.predict([pair], 75, 5, use_cuda)
-    ref =  pair.get_text(pair.full_target_tokens, pointer_gen_model.vocab).replace(" EOS", "")
-    #print(pred)
-    arg_max = " ".join([t[0]['word']+"("+str(round(t[0]['p_gen'], 2))+")" for t in pred if t[0]['word'] != 'EOS' and t[0]['word'] != 'PAD'])
-    if len(pred_beam[0][0]) > 15: beam = pred_beam[0][0]
-    else: beam = pred_beam[1][0].replace(' EOS', "").replace(" PAD", "")
-    results[i] = {'ref': ref, 'greedy': arg_max, 'beam': beam}
+
+
+
+def remove_http_url(text): return ' '.join([w for w in text.split(" ") if '.co' not in w and 'http' not in w])
+
+
+def tokenize_text(nlp, text):
+    text = text.replace("(S)", "").replace("(M)", "").replace("‘", "'").replace("’", "'")
+    text = remove_http_url(text)
+    text = text.replace("   ", " ").replace("  ", " ")
+    return " ".join([t.text for t in nlp(text)]).replace("' '", "''")
+
+
+
+
+
+def predict_and_print(pair, model, limit):
+    pred = model.predict([pair], limit, False, use_cuda)
+    pred_beam = model.predict([pair], limit, 5, use_cuda)
+    ref = pair.get_text(pair.full_target_tokens, pointer_gen_model.vocab).replace(" EOS", "")
+    arg_max = " ".join([t[0]['word']  for t in pred if t[0]['word'] != 'EOS' and t[0]['word'] != 'PAD'])
+    if len(pred_beam[0][0]) > 15:
+        beam = pred_beam[0][0]
+    else:
+        beam = pred_beam[1][0].replace(' EOS', "").replace(" PAD", "")
+    results = {'ref': ref, 'greedy': arg_max, 'beam': beam}
     print('ref:', ref)
-    print('greedy:',  arg_max)
+    print('greedy:', arg_max)
     print('beam:', beam)
+    return results
 
-import json
-with open(current + data_path + "100_preds.json", 'w') as f: f.write(json.dumps(results))
+def test_on_new_article(path, file_name, text, model, vocab):
+    nlp = spacy.load('en')
+    if text is None:
+        text = " ".join(open(path + file_name, 'r').readlines())
+    text = tokenize_text(nlp, text)
+    text_pair = TextPair(text, '', 1000, vocab)
+    result = predict_and_print(text_pair, model, limit=75)
+
+def predict_from_data(test_pairs, _range=(1010, 1015), model=None):
+    results = dict()
+    for i in range(_range[0], _range[1]):
+        print(i)
+        pair = test_pairs[i]
+        results[i] = predict_and_print(pair, model, 75)
+    return results
+
+def save_predictions(result_dict, path, name):
+    import json
+    with open(path + name+".json", 'w') as f: f.write(json.dumps(result_dict))
 
 
 

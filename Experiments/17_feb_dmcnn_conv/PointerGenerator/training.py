@@ -7,10 +7,12 @@ import sys, os
 
 samuel = '/srv/'
 x99 = '/home/'
-current = samuel
-exp_path = 'Experiments/14_feb_dm_cnn_60max/'
+current = x99
+exp_path = 'Experiments/17_feb_dmcnn_conv/'
 
-sys.path.append(current + 'havikbot/MasterThesis/Code/Abstractive_Summarization/'+ exp_path)
+sys.path.pop(-1)
+sys.path.pop(1)
+sys.path.append(current + 'havikbot/MasterThesis/Code/Abstractive_Summarization/' + exp_path)
 
 
 from PointerGenerator.model import *
@@ -36,18 +38,18 @@ test_pairs = dataset.summary_pairs[int(len(dataset.summary_pairs)*0.9):]
 
 # 'TemporalAttn' or CoverageAttn
 
-config = {'model_type': 'TemporalAttn',
-          'embedding_size': 100, 'hidden_size': 400,
-          'input_length': 400, 'target_length': 60,
-          'model_path': current+ model_path, 'model_id': 'DM_CNN_50k_temporal_14_feb_60max_tf08' }
+config = {'model_type': 'CoverageAttn',
+          'embedding_size': 128, 'hidden_size': 256,
+          'input_length': 400, 'target_length': 40,
+          'model_path': current+ model_path, 'model_id': 'DM_CNN_50k_coverage_18_feb_40max_conv' }
 
 
 pointer_gen_model = PGModel(config=config, vocab=dataset.vocab, use_cuda=use_cuda)
 
 pointer_gen_model.train(data=training_pairs, val_data=test_pairs,
-                        nb_epochs=25, batch_size=30,
-                        optimizer=torch.optim.Adam, lr=0.001,
-                        tf_ratio=0.80, stop_criterion=None,
+                        nb_epochs=25, batch_size=40,
+                        optimizer=torch.optim.Adagrad, lr=0.15,
+                        tf_ratio=0.75, stop_criterion=None,
                         use_cuda=True, print_evry=200
                         )
 
