@@ -4,7 +4,6 @@ import torch
 import torch.nn as nn
 from torch.autograd import Variable
 import torch.nn.functional as F
-import time
 
 
 class EncoderRNN(nn.Module):
@@ -127,13 +126,8 @@ class TemporalAttnDecoderRNN(nn.Module):
         if embedding_weight is not None:
             self.out_vocab.weight = embedding_weight
 
-        self.full_vocab_padding = nn.ZeroPad2d((0, self.vocab_size+1000, 0, 0))
-        self.right_padding = nn.ZeroPad2d((0, 1000, 0, 0))
-
-
     def forward(self, input_token, prev_decoder_h_states, last_hidden, encoder_states,
                 full_input_var, previous_att, nb_unk_tokens, use_cuda):
-
         embedded_input = self.embedding(input_token)
         embedded_input = self.dropout(embedded_input)
         decoder_output, decoder_hidden = self.gru(embedded_input, torch.unsqueeze(last_hidden, 0))
@@ -164,13 +158,16 @@ class TemporalAttnDecoderRNN(nn.Module):
         p_vocab = F.softmax(self.out_vocab(self.out_hidden(combined_context)), dim=-1) # replace with embedding weight
         p_gen = F.sigmoid(self.gen_layer(combined_context))
 
-        token_input_dist = self.full_vocab_padding(att_dist.unsqueeze(1)).squeeze(1)
-        token_input_dist = token_input_dist.narrow(1, att_dist.size()[1], token_input_dist.size()[1] - att_dist.size()[1])
+        token_input_dist = Variable(torch.zeros((full_input_var.size()[0], self.vocab_size+nb_unk_tokens+200)))
+        padding_matrix_2 = Variable(torch.zeros(full_input_var.size()[0], nb_unk_tokens+200))
+        if use_cuda:
+            token_input_dist = token_input_dist.cuda()
+            padding_matrix_2 = padding_matrix_2.cuda()
+
         token_input_dist.scatter_add_(1, full_input_var, att_dist)
+        p_final = torch.cat((p_vocab * p_gen, padding_matrix_2), 1) + (1-p_gen) * token_input_dist
 
-        p_final = self.right_padding((p_vocab * p_gen).unsqueeze(1)).squeeze(1) + (1-p_gen) * token_input_dist
         decoder_h_states = torch.cat((prev_decoder_h_states, decoder_hidden.unsqueeze(1)), 1)
-
         return p_final, p_gen, p_vocab, att_dist, decoder_h_states, decoder_hidden, previous_att
 
     def init_hidden(self, use_cuda):

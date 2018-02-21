@@ -16,7 +16,7 @@ class PGmodel_reinforcement(PGModel):
             self.decoder_optimizer = optimizer(self.decoder.parameters(), lr= lr, weight_decay=0.0000001)
             self.criterion = nn.NLLLoss()
             self.logger = TrainingLogger(nb_epochs, batch_size, len(data), len(val_data))
-            print("Optimizers compiled for RL training")
+            print("Optimizers compiled")
 
         rouge_calc = RougeCalculator(stopwords=False, lang="en")
         for epoch in range(len(self.logger.log), nb_epochs):
@@ -24,7 +24,7 @@ class PGmodel_reinforcement(PGModel):
             batches = utils.sort_and_shuffle_data(data, nb_buckets=100, batch_size=batch_size, rnd=True)
             for b in range(len(batches)):
                 #try:
-                loss, _time = self.train_batch_rl_mc(samples=batches[b], use_cuda=self.use_cuda, rouge=rouge_calc)
+                loss, _time = self.train_batch_rl(samples=batches[b], use_cuda=self.use_cuda, rouge=rouge_calc)
                 self.logger.add_iteration(b+1, loss, _time)
                 if b % print_evry == 0:
                     preds = self.predict([data[b*batch_size]], self.config['target_length'], False, self.use_cuda)
@@ -41,120 +41,6 @@ class PGmodel_reinforcement(PGModel):
             if epoch == 0 or self.logger.log[epoch]["val_loss"] < self.logger.log[epoch-1]["val_loss"]:
                 self.save_model(self.config['model_path'], self.config['model_id'],
                                 epoch=epoch, loss=self.logger.log[epoch]["val_loss"])
-
-
-
-    def run_N_monte_carlo_simulations(self, N, batch_size, decoder_input, decoder_hidden_states, decoder_hidden, encoder_outputs,
-                                      full_input_variable, previous_att, nb_unks, use_cuda, sim_length):
-
-        def stack_N(tensor):
-            return torch.stack([tensor[i] for i in range(batch_size) for n in range(N)], 0)
-
-        decoder_input = stack_N(decoder_input)
-        decoder_hidden_states = stack_N(decoder_hidden_states)
-        decoder_hidden = stack_N(decoder_hidden)
-        encoder_outputs = stack_N(encoder_outputs)
-        full_input_variable = stack_N(full_input_variable)
-        previous_att = stack_N(previous_att)
-
-        sampled_seq = []
-        for i in range(batch_size):
-            sim_seq = []
-            for i in range(N): sim_seq.append([])
-            sampled_seq.append(sim_seq)
-
-        for token_i in range(sim_length):
-            p_final, p_gen, p_vocab, att_dist, decoder_h_states, decoder_hidden, previous_att = \
-                self.decoder(decoder_input, decoder_hidden_states, decoder_hidden, encoder_outputs,
-                             full_input_variable, previous_att, nb_unks, use_cuda)
-
-            action_dist = Categorical(p_final)
-            action_sampling = action_dist.sample()
-            for i in range(action_sampling.size()[0]): sampled_seq[int(i/N)][i % N].append(action_sampling.data[i])
-            decoder_input = self.mask_input(action_sampling).unsqueeze(1)
-
-        return sampled_seq
-
-    def compute_reward_mc(self, pairs, sequences, rouge):
-        return [1 for i in range(len(pairs))]
-        source_texts = [pair.get_text(pair.full_target_tokens, self.vocab) for pair in pairs]
-        scores = []
-        for s in range(len(sequences)):
-            generated_texts = [pairs[s].get_text(seq, self.vocab) for seq in sequences[s]]
-            rouge_scores = [rouge.rouge_l(text, source_texts[s]) for text in generated_texts]
-            if len(rouge_scores) != 0: scores.append(sum(rouge_scores) / len(rouge_scores))
-            else: scores.append(0)
-        return scores
-
-
-
-    def train_batch_rl_mc(self, samples, use_cuda, tf_ratio=0.5, backprop=True, coverage_lambda=-1, rouge=None):
-        start = time.time()
-        if len(samples) == 0: return 0, 0
-
-        target_length = min(self.config['target_length'], max([len(pair.masked_target_tokens) for pair in samples]))
-        nb_unks = max([len(s.unknown_tokens) for s in samples])
-        input_variable, full_input_variable, target_variable, full_target_variable, decoder_input = \
-            utils.get_batch_variables(samples, self.config['input_length'], target_length, use_cuda,
-                                      self.vocab.word2index['SOS'])
-
-        encoder_hidden = self.encoder.init_hidden(len(samples), use_cuda)
-        self.encoder_optimizer.zero_grad()
-        self.decoder_optimizer.zero_grad()
-        losses = [0] * len(samples)
-
-        encoder_outputs, encoder_hidden = self.encoder(input_variable, encoder_hidden)
-        decoder_hidden = torch.cat((encoder_hidden[0], encoder_hidden[1]), -1)
-        decoder_hidden_states = torch.cat((encoder_hidden[0], encoder_hidden[1]), -1).unsqueeze(1)
-        previous_att = None
-
-        result_seq = []
-        for b in range(len(samples)): result_seq.append([])
-        for token_i in range(target_length):
-            p_final, p_gen, p_vocab, att_dist, decoder_h_states, decoder_hidden, previous_att = \
-                self.decoder(decoder_input, decoder_hidden_states, decoder_hidden, encoder_outputs,
-                             full_input_variable, previous_att, nb_unks, use_cuda)
-
-            _, max_tokens = p_final.max(1)
-            for s in range(len(samples)): result_seq[s].append(max_tokens.data[s])
-            decoder_input = self.mask_input(max_tokens).unsqueeze(1)
-
-            if token_i == target_length -1:
-                rewards = self.compute_reward_mc(samples, [[seq] for seq in result_seq], rouge)
-
-            else:
-                #before = time.time()
-                mc_seqs = self.run_N_monte_carlo_simulations(4, len(samples), decoder_input.clone(),
-                                                         decoder_hidden_states.clone(), decoder_hidden.clone(),
-                                                         encoder_outputs, full_input_variable, previous_att.clone(),
-                                                         nb_unks, use_cuda, sim_length=target_length-token_i -1)
-                #print("  it:", token_i, "mc:", time.time() - before)
-                reward_seqs = [[result_seq[s] + mc_seqs[s][n] for n in range(len(mc_seqs[s]))] for s in range(len(samples))]
-                #before = time.time()
-                rewards = self.compute_reward_mc(samples, reward_seqs, rouge)
-                #print("  it:", token_i, "reward:", time.time() - before)
-
-            # reward scaling?
-            for i in range(len(samples)):
-                losses[i] += rewards[i] * self.criterion(torch.log(p_final[i].clamp(min=1e-8).unsqueeze(0)), max_tokens[i])
-
-        loss = 0
-        for i in range(len(samples)): loss += losses[i]
-        #before_back = time.time()
-        if backprop:
-            loss.backward()
-            torch.nn.utils.clip_grad_norm(self.encoder.parameters(), 2)
-            torch.nn.utils.clip_grad_norm(self.decoder.parameters(), 2)
-            self.encoder_optimizer.step()
-            self.decoder_optimizer.step()
-        #print("backpropp:", before_back - time.time())
-        return loss.data[0] / target_length, time.time() - start
-
-
-
-
-
-
 
 
 
@@ -234,7 +120,6 @@ class PGmodel_reinforcement(PGModel):
         for i in range(input_var.size()[0]):
             if input_var.data[i] >= self.vocab.vocab_size: input_var.data[i] = self.vocab.word2index['UNK']
         return input_var
-
 
 
     def compute_reward(self, pairs, sequences, rouge):

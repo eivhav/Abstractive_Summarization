@@ -7,9 +7,10 @@ import sys, os
 
 samuel = '/srv/'
 x99 = '/home/'
-current = x99
+current = samuel
+exp_path = 'Experiments/20_feb_dmcnn_temporal_RL40max/'
 
-sys.path.append(current + 'havikbot/MasterThesis/Code/Abstractive_Summarization/')
+sys.path.append(current + 'havikbot/MasterThesis/Code/Abstractive_Summarization/' + exp_path)
 
 from PointerGenerator.model import *
 from PointerGenerator.data_loader import *
@@ -35,17 +36,17 @@ test_pairs = dataset.summary_pairs[int(len(dataset.summary_pairs)*0.9):]
 # 'TemporalAttn' or CoverageAttn
 
 config = {'model_type': 'TemporalAttn',
-          'embedding_size': 100, 'hidden_size': 200,
-          'input_length': 200, 'target_length': 20,
+          'embedding_size': 100, 'hidden_size': 400,
+          'input_length': 400, 'target_length': 40,
           'model_path': current+ model_path, 'model_id': 'DM_CNN_50k_temporal_RL_max40' }
 
 
 pointer_gen_model = PGmodel_reinforcement(config=config, vocab=dataset.vocab, use_cuda=use_cuda)
 
 pointer_gen_model.train_rl(data=training_pairs, val_data=test_pairs,
-                        nb_epochs=25, batch_size=16,
+                        nb_epochs=25, batch_size=25,
                         optimizer=torch.optim.Adam, lr=0.0001,
-                        tf_ratio=0.80, stop_criterion=None,
+                        tf_ratio=0.60, stop_criterion=None,
                         use_cuda=True, print_evry=200
                         )
 
