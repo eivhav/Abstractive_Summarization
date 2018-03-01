@@ -61,8 +61,8 @@ class PGModel():
     def train(self, data, val_data, nb_epochs, batch_size, optimizer, lr, tf_ratio, stop_criterion, use_cuda, print_evry):
 
         if self.logger is None:
-            self.encoder_optimizer = optimizer(self.encoder.parameters(), lr= lr)
-            self.decoder_optimizer = optimizer(self.decoder.parameters(), lr= lr)
+            self.encoder_optimizer = optimizer(self.encoder.parameters(), lr= lr, weight_decay=0.0000001)
+            self.decoder_optimizer = optimizer(self.decoder.parameters(), lr= lr, weight_decay=0.0000001)
             self.criterion = nn.NLLLoss()
             self.logger = TrainingLogger(nb_epochs, batch_size, len(data), len(val_data))
             print("Optimizers compiled")

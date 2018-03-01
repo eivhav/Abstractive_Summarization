@@ -22,30 +22,10 @@ class PGmodel_reinforcement(PGModel):
         for epoch in range(len(self.logger.log), nb_epochs):
             self.logger.init_epoch(epoch)
             batches = utils.sort_and_shuffle_data(data, nb_buckets=100, batch_size=batch_size, rnd=True)
-            rouge_diff = 0
             for b in range(len(batches)):
-                print("\n")
-                preds = self.predict(batches[b], self.config['target_length'], False, self.use_cuda)
-                rewards = self.compute_reward_mc(batches[b],
-                                                 [[[t[s]['token_idx'] for t in preds]] for s in range(batch_size)],
-                                                 rouge_calc)
-                score_before = sum(rewards) / len(rewards)
-                '''
-                for i in range(batch_size):
-                    print("", rewards[i], " ".join([str(t[i]['word']) for t in preds]))
-                '''
+
                 loss, _time = self.train_batch_rl_mc(samples=batches[b], use_cuda=self.use_cuda, rouge=rouge_calc)
-
-                preds = self.predict(batches[b], self.config['target_length'], False, self.use_cuda)
-                rewards = self.compute_reward_mc(batches[b],
-                                                 [[[t[s]['token_idx'] for t in preds]] for s in range(batch_size)],
-                                                 rouge_calc)
-                score_after = sum(rewards) / len(rewards)
-                rouge_diff = ((rouge_diff * b) + score_after - score_before) / (b+1)
-                print(rouge_diff)
-
                 self.logger.add_iteration(b+1, loss, _time)
-
                 if b % print_evry == 0:
                     preds = self.predict([data[b*batch_size]], self.config['target_length'], False, self.use_cuda)
                     print('\n', " ".join([str(t[0]['word']) for t in preds]))
@@ -96,10 +76,10 @@ class PGmodel_reinforcement(PGModel):
 
     def compute_reward_mc(self, pairs, sequences, rouge):
         # return [1 for i in range(len(pairs))]
-        source_texts = [pair.get_text(pair.full_target_tokens, self.vocab).split("EOS")[0] for pair in pairs]
+        source_texts = [pair.get_text(pair.full_target_tokens, self.vocab) for pair in pairs]
         scores = []
         for s in range(len(sequences)):
-            generated_texts = [pairs[s].get_text(seq, self.vocab).split("EOS")[0] for seq in sequences[s]]
+            generated_texts = [pairs[s].get_text(seq, self.vocab) for seq in sequences[s]]
             rouge_scores = [rouge.rouge_l(text, source_texts[s]) for text in generated_texts]
             if len(rouge_scores) != 0: scores.append(sum(rouge_scores) / len(rouge_scores))
             else: scores.append(0)
@@ -182,8 +162,8 @@ class PGmodel_reinforcement(PGModel):
             self.decoder_optimizer.step()
         timings['backprop'] += time.time() - last
 
-        #print("\n")
-        #for desc in timings: print(desc, round(timings[desc], 3), round(timings[desc] / sum([timings[t] for t in timings]), 2))
+        print("\n")
+        for desc in timings: print(desc, round(timings[desc], 3), round(timings[desc] / sum([timings[t] for t in timings]), 2))
 
         return loss.data[0] / target_length, time.time() - start
 
@@ -246,14 +226,13 @@ class PGmodel_reinforcement(PGModel):
             # Add the difference between the output and the sampled tokens to the loss function
 
             for i in range(len(samples)):
-                losses[i] += self.criterion(torch.log(p_final_sampling[i].clamp(min=1e-8).unsqueeze(0)),
+                losses[i] -= self.criterion(torch.log(p_final_sampling[i].clamp(min=1e-8).unsqueeze(0)),
                                             action_sampling[i])
 
             decoder_input = torch.cat((self.mask_input(action_baseline), self.mask_input(action_sampling)), 0).unsqueeze(1)
 
-        #print('\n')
         reward_delta = Variable(torch.FloatTensor(self.compute_reward(samples, baseline_seq, rouge)) -
-                                torch.FloatTensor(self.compute_reward(samples, sampled_seq, rouge)))
+                                torch.FloatTensor(self.compute_reward(samples, sampled_seq, rouge)), requires_grad=False)
 
         if use_cuda: reward_delta = reward_delta.cuda()
         loss = 0
@@ -281,8 +260,6 @@ class PGmodel_reinforcement(PGModel):
         generated_texts = [" ".join([str(sequences[w][i]['word']) for w in range(len(sequences))]) for i in range(len(pairs))]
         scores = [rouge.rouge_l(text[0], text[1]) for text in
                   [(generated_texts[i], source_texts[i]) for i in range(len(pairs))]]
-
-        #print(round(scores[0], 3), generated_texts[0])
 
         return scores
 

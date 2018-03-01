@@ -162,7 +162,7 @@ class TemporalAttnDecoderRNN(nn.Module):
 
         combined_context = torch.cat((torch.cat((decoder_hidden, encoder_context), -1), decoder_context), -1)
 
-        p_vocab = F.softmax(self.out_vocab(self.out_hidden(combined_context)), dim=-1)
+        p_vocab = F.softmax(self.out_vocab(self.out_hidden(combined_context)), dim=-1) # replace with embedding weight
         p_gen = F.sigmoid(self.gen_layer(combined_context))
 
         token_input_dist = self.full_vocab_padding(att_dist.unsqueeze(1)).squeeze(1)

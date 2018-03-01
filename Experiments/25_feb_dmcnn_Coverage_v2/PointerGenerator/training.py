@@ -34,25 +34,18 @@ test_pairs = dataset.summary_pairs[int(len(dataset.summary_pairs)*0.9):]
 
 # 'TemporalAttn' or CoverageAttn
 
-config = {'model_type': 'TemporalAttn',
-          'embedding_size': 128, 'hidden_size': 256,
+config = {'model_type': 'CoverageAttn',
+          'embedding_size': 100, 'hidden_size': 400,
           'input_length': 400, 'target_length': 60,
-          'model_path': current+ model_path, 'model_id': 'DM_CNN_50k_TemporalAttn_28_feb' }
+          'model_path': current+ model_path, 'model_id': 'DM_CNN_50k_CoverageAttn_26_feb' }
 
 
 pointer_gen_model = PGmodel_reinforcement(config=config, vocab=dataset.vocab, use_cuda=use_cuda)
-'''             
-pointer_gen_model.load_model(file_path=current + 'havikbot/MasterThesis/Models/',
-                              file_name='checkpoint_DM_CNN_50k_CoverageAttn_26_feb_ep@8_loss@4049.408.pickle')
-pointer_gen_model.config['target_length'] = 60
-'''
-
-
 
 pointer_gen_model.train(data=training_pairs, val_data=test_pairs,
                         nb_epochs=25, batch_size=32,
-                        optimizer=torch.optim.Adam, lr=0.002,
+                        optimizer=torch.optim.Adam, lr=0.001,
                         tf_ratio=0.75, stop_criterion=None,
-                        use_cuda=True, print_evry=100
+                        use_cuda=True, print_evry=200
                         )
 
