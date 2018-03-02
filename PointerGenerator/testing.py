@@ -45,6 +45,7 @@ pointer_gen_model = PGmodel_reinforcement(config=config, vocab=dataset.vocab, us
 pointer_gen_model.load_model(file_path=current + 'havikbot/MasterThesis/Models/',
                               file_name='checkpoint_DM_CNN_50k_CoverageAttn_26_feb_ep@8_loss@4049.408.pickle')
 
+'''
 pointer_gen_model.train_rl(data=training_pairs, val_data=test_pairs,
                         nb_epochs=25, batch_size=32,
                         optimizer=torch.optim.Adam, lr=0.00005,
@@ -53,7 +54,7 @@ pointer_gen_model.train_rl(data=training_pairs, val_data=test_pairs,
                         )
 
 
-
+'''
 
 
 def remove_http_url(text): return ' '.join([w for w in text.split(" ") if '.co' not in w and 'http' not in w])
@@ -79,9 +80,9 @@ def predict_and_print(pair, model, limit):
     else:
         beam = pred_beam[1][0].replace(' EOS', "").replace(" PAD", "")
     results = {'ref': ref, 'greedy': arg_max, 'beam': beam}
-    print('ref:', ref)
-    print('greedy:', arg_max)
-    print('beam:', beam)
+    #print('ref:', ref)
+    #print('greedy:', arg_max)
+    #print('beam:', beam)
     return results
 
 def test_on_new_article(path, file_name, text, model, vocab):
@@ -92,7 +93,7 @@ def test_on_new_article(path, file_name, text, model, vocab):
     text_pair = TextPair(text, '', 1000, vocab)
     result = predict_and_print(text_pair, model, limit=75)
 
-def predict_from_data(test_pairs, _range=(1010, 1015), model=None):
+def predict_from_data(test_pairs, _range=(1010, 1100), model=None):
     results = dict()
     for i in range(_range[0], _range[1]):
         print(i)

@@ -143,7 +143,7 @@ class Beam():
 
         for p in [-math.log(log_prob) for log_prob in self.log_probs]:
             score += p
-        return score
+        return score / len(self.sequence)
 
 
 

@@ -10,13 +10,15 @@ samuel = '/srv/'
 x99 = '/home/'
 current =x99
 
-sys.path.append(current + 'havikbot/MasterThesis/Code/Abstractive_Summarization/')
+sys.path.append('/home/havikbot/MasterThesis/Code/Abstractive_Summarization/Experiments/27_feb_dmcnn_temporal/')
+#sys.path.append('/srv/havikbot/MasterThesis/Code/SumEval/sumeval/')
 
 from PointerGenerator.model import *
 from PointerGenerator.data_loader import *
 from PointerGenerator.rl_model import *
 #from model import *
 #from data_loader import *
+from sumeval.metrics.rouge import RougeCalculator
 
 use_cuda = torch.cuda.is_available()
 
@@ -34,26 +36,6 @@ training_pairs = dataset.summary_pairs[0:int(len(dataset.summary_pairs)*0.9)]
 test_pairs = dataset.summary_pairs[int(len(dataset.summary_pairs)*0.9):]
 
 # 'TemporalAttn' or CoverageAttn
-
-config = {'model_type': 'CoverageAttn',
-          'embedding_size': 100, 'hidden_size': 400,
-          'input_length': 400, 'target_length': 50,
-          'model_path': model_path, 'model_id': 'CombinedTest' }
-
-
-pointer_gen_model = PGmodel_reinforcement(config=config, vocab=dataset.vocab, use_cuda=use_cuda)
-pointer_gen_model.load_model(file_path=current + 'havikbot/MasterThesis/Models/',
-                              file_name='checkpoint_DM_CNN_50k_CoverageAttn_26_feb_ep@8_loss@4049.408.pickle')
-
-pointer_gen_model.train_rl(data=training_pairs, val_data=test_pairs,
-                        nb_epochs=25, batch_size=32,
-                        optimizer=torch.optim.Adam, lr=0.00005,
-                        tf_ratio=0.75, stop_criterion=None,
-                        use_cuda=True, print_evry=200
-                        )
-
-
-
 
 
 def remove_http_url(text): return ' '.join([w for w in text.split(" ") if '.co' not in w and 'http' not in w])
@@ -79,9 +61,9 @@ def predict_and_print(pair, model, limit):
     else:
         beam = pred_beam[1][0].replace(' EOS', "").replace(" PAD", "")
     results = {'ref': ref, 'greedy': arg_max, 'beam': beam}
-    print('ref:', ref)
-    print('greedy:', arg_max)
-    print('beam:', beam)
+    #print('ref:', ref)
+    #print('greedy:', arg_max)
+    #print('beam:', beam)
     return results
 
 def test_on_new_article(path, file_name, text, model, vocab):
@@ -95,7 +77,6 @@ def test_on_new_article(path, file_name, text, model, vocab):
 def predict_from_data(test_pairs, _range=(1010, 1015), model=None):
     results = dict()
     for i in range(_range[0], _range[1]):
-        print(i)
         pair = test_pairs[i]
         results[i] = predict_and_print(pair, model, 75)
     return results
@@ -103,6 +84,50 @@ def predict_from_data(test_pairs, _range=(1010, 1015), model=None):
 def save_predictions(result_dict, path, name):
     import json
     with open(path + name+".json", 'w') as f: f.write(json.dumps(result_dict))
+
+
+def score_model(test_pairs, model, model_id):
+    scores = [0, 0, 0]
+    rouge_calc = RougeCalculator(stopwords=False, lang="en")
+    results = predict_from_data(test_pairs, _range=(0, 5000), model= model)
+    for k in results:
+        el = results[k]
+        scores[0] += rouge_calc.rouge_1(el['beam'].split('EOS')[0], el['ref'].split('EOS')[0])
+        scores[1] += rouge_calc.rouge_2(el['beam'].split('EOS')[0], el['ref'].split('EOS')[0])
+        scores[2] += rouge_calc.rouge_l(el['beam'].split('EOS')[0], el['ref'].split('EOS')[0])
+    print(model_id.split("@"), round(scores[0]/len(results), 3),
+          round(scores[1]/len(results), 3), round(scores[2]/len(results), 3))
+
+
+config = {'model_type': 'TemporalAttn',
+          'embedding_size': 100, 'hidden_size': 400,
+          'input_length': 400, 'target_length': 50,
+          'model_path': model_path, 'model_id': 'CombinedTest' }
+
+import glob
+
+for file_name in glob.iglob(current + model_path + "temporal27feb/" +"*.pickle"):
+    file_path = file_name.split("check")[0]
+    model_id = file_name.split("/")[-1]
+
+    pointer_gen_model = PGmodel_reinforcement(config=config, vocab=dataset.vocab, use_cuda=use_cuda)
+    pointer_gen_model.load_model(file_path=file_path, file_name=model_id)
+    score_model(test_pairs, model=pointer_gen_model, model_id =model_id)
+
+
+
+
+
+'''
+pointer_gen_model.train_rl(data=training_pairs, val_data=test_pairs,
+                        nb_epochs=25, batch_size=32,
+                        optimizer=torch.optim.Adam, lr=0.00005,
+                        tf_ratio=0.75, stop_criterion=None,
+                        use_cuda=True, print_evry=200
+                        )
+
+
+'''
 
 
 
