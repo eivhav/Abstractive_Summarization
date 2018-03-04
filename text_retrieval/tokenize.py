@@ -125,6 +125,7 @@ def fix_tokenized_4(text):
             result[i-1] = words[i-1] +
     '''
 
+import unicodedata
 
 def tokenize_data_common(out_path, nlp, articles, p_id, corpus):
     count = 0
@@ -134,7 +135,7 @@ def tokenize_data_common(out_path, nlp, articles, p_id, corpus):
         if 'summary_items' not in article.keys() or 'headline' not in article.keys(): continue
         count += 1
         if count % 1000 == 0:
-            with open(out_path+ "tokenized_c/"+corpus+"_tok_"+str(int(count/1000)) + "000_"+str(p_id)+".txt", "w") as handle:
+            with open(out_path+ "tokenized_common/"+corpus+"_tok_"+str(int(count/1000)) + "000_"+str(p_id)+".txt", "w") as handle:
                 handle.write(json.dumps(results))
             results = dict()
 
@@ -147,15 +148,16 @@ def tokenize_data_common(out_path, nlp, articles, p_id, corpus):
             else:
                 text = article[type]
             text = text.replace("(S)", "").replace("(M)", "").replace("‘", "'").replace("’", "'")
+            text = unicodedata.normalize("NFKD", text)
             text = remove_http_url(text)
-            text = text.replace("   ", " ").replace("  ", " ")
-            results[key]['tok_' + type] = " ".join([t.text for t in nlp(text)]).replace("' '", "''")
+            text = text.replace("   ", " ").replace("  ", " ").replace("-", "_")
+            results[key]['tok_' + type] = " ".join([t.text for t in nlp(text)]).replace("' '", "''").replace("_", "-")
 
         if count % 250 == 0:
             print(p_id, count, 100*count/len(articles), time.time() - start)
 
 
-    with open(out_path+ "tokenized_c/"+corpus+"_tok_last"+str(p_id)+".txt", "w") as handle:
+    with open(out_path+ "tokenized_common/"+corpus+"_tok_last"+str(p_id)+".txt", "w") as handle:
         handle.write(json.dumps(results))
 
 
@@ -164,34 +166,34 @@ def tokenize_data_common(out_path, nlp, articles, p_id, corpus):
 
 
 if __name__ == '__main__':
-    corpus = 'DailyMail'
-    path = "/srv/havikbot/MasterThesis/Data/" + corpus + "/"
+    for corpus in ['CNN', 'DailyMail']:
+        path = "/home/havikbot/MasterThesis/Data/" + corpus + "/"
 
-    extracted_files = list(glob.iglob(path+"extracted/"+"*.txt"))
-    data = dict()
-    count = 0
-    for file in extracted_files:
-        d = json.load(open(file))
-        for k in d.keys(): data[k] = d[k]
+        extracted_files = list(glob.iglob(path+"extracted/"+"*.txt"))
+        data = dict()
+        count = 0
+        for file in extracted_files:
+            d = json.load(open(file))
+            for k in d.keys(): data[k] = d[k]
 
-    nb_processes = 2
-    tasks = []
-    results = []
-    for i in range(nb_processes):
-        tasks.append([])
-        results.append(dict())
+        nb_processes = 2
+        tasks = []
+        results = []
+        for i in range(nb_processes):
+            tasks.append([])
+            results.append(dict())
 
-    processes = []
-    keys = list(data.keys())
-    for i in range(len(keys)): tasks[i % nb_processes].append((data[keys[i]], keys[i]))
-    data = None
+        processes = []
+        keys = list(data.keys())
+        for i in range(len(keys)): tasks[i % nb_processes].append((data[keys[i]], keys[i]))
+        data = None
 
-    for p in range(nb_processes):
-        nlp = spacy.load('en')
-        proc = Process(target=tokenize_data_common, args=(path, nlp, tasks[p], p, corpus))
-        proc.start()
-        proc = processes.append(proc)
-    for p in processes: p.join()
+        for p in range(nb_processes):
+            nlp = spacy.load('en')
+            proc = Process(target=tokenize_data_common, args=(path, nlp, tasks[p], p, corpus))
+            proc.start()
+            proc = processes.append(proc)
+        for p in processes: p.join()
 
 
 

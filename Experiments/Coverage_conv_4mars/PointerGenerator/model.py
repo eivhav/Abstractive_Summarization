@@ -26,7 +26,7 @@ class PGModel():
         else:
             self.decoder = CoverageAttnDecoderRNN(config['hidden_size'], config['embedding_size'],
                                                   self.vocab.vocab_size, 1, dropout_p=0.0,
-                                                  input_lenght=config['input_length'], embedding_weight=None)
+                                                  input_lenght=config['input_length'], embedding_weight=None, use_conv=True)
         if use_cuda:
             self.encoder.cuda()
             self.decoder.cuda()

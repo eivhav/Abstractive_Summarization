@@ -8,7 +8,7 @@ from multiprocessing import Process
 
 def retrieve_meta_data(soup):
     meta_content = dict()
-    meta_info = {
+    meta_info_dm = {
                  'keywords':            {'s_type': "name", 's_prop': "keywords", 'target': 'keywords'},
                  'news_keywords':       {'s_type': "name", 's_prop': "news_keywords", 'target': 'keywords'},
                  'description':         {'s_type': "name", 's_prop': "description", 'target': 'description'},
@@ -16,6 +16,11 @@ def retrieve_meta_data(soup):
                  'twitter_description': {'s_type': "property", 's_prop': "twitter:description", 'target': 'description'},
                  'timestamp_pub':       {'s_type': "property", 's_prop': 'article:published_time', 'target': 'timestamp_pub'}
                  }
+
+    meta_info = {
+        'description': {'s_type': "name", 's_prop': "description", 'target': 'description'},
+        'timestamp_pub': {'s_type': "itemprop", 's_prop': 'dateCreated', 'target': 'timestamp_pub'}
+    }
 
     for meta_key in meta_info:
         if 's_prop' in meta_info[meta_key]:
