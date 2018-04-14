@@ -34,9 +34,6 @@ class SiameseConvModule(nn.Module):
         return self.cosine(self.conv_forward(source_tokens), self.conv_forward(target_tokens))
 
 
-class
-
-
 
 class NoveltyModel():
     def __init__(self, config, vocab, use_cuda):

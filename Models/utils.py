@@ -56,12 +56,13 @@ def get_batch_variables(samples, input_length, target_length, use_cuda, SOS_toke
     target_variable = Variable(torch.LongTensor([zero_pad(pair.masked_target_tokens, target_length) for pair in samples]))
     full_target_variable = Variable(torch.LongTensor([zero_pad(pair.full_target_tokens, target_length) for pair in samples]))
     decoder_input = Variable(torch.LongTensor([[SOS_token] for i in range(len(samples))]))
+    control_zero = Variable(torch.FloatTensor([[0] for i in range(len(samples))]))
 
     if use_cuda:
         return input_variable.cuda(), full_input_variable.cuda(), target_variable.cuda(), \
-               full_target_variable.cuda(), decoder_input.cuda()
+               full_target_variable.cuda(), decoder_input.cuda(), control_zero.cuda()
     else:
-        return input_variable, full_input_variable, target_variable, full_target_variable, decoder_input
+        return input_variable, full_input_variable, target_variable, full_target_variable, decoder_input, control_zero
 
 
 def sort_and_shuffle_data(samples, nb_buckets, batch_size, rnd=True):
@@ -73,6 +74,7 @@ def sort_and_shuffle_data(samples, nb_buckets, batch_size, rnd=True):
     for b in buckets:
         if rnd: random.shuffle(b)
         batches += [b[batch_size*i:batch_size*(i+1)] for i in range(int(len(b) / batch_size))]
+    if rnd: random.shuffle(batches)
     return batches
 
 

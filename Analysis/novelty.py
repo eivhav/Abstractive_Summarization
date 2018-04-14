@@ -1,12 +1,14 @@
 import json
 import glob
 import unicodedata
+
+'''
 files = list(glob.iglob('/home/havikbot/MasterThesis/Data/CNN_dailyMail/DailyMail/tokenized4/'+"*.txt"))
 data = dict()
 for f in files:
     d = json.load(open(f))
     for k in d.keys(): data[k] = d[k]
-
+'''
 def compute_n_grams(text, n):
     return {"~".join([text[i+k] for k in range(n)]): True for i in range(len(text) -n+1)}
 
@@ -23,21 +25,9 @@ def compute_novelty(summary, text_content, n_gram_n):
     summary_n_grams = compute_n_grams(process_and_split_text(unicode_norm(summary)), n_gram_n)
     overlapp = [tri_gram for tri_gram in summary_n_grams if tri_gram in text_n_grams]
 
-
-
-    #print(summary)
-    #print([tri_gram for tri_gram in summary_n_grams if tri_gram not in overlapp])
-    #print(overlapp)
     if len(summary_n_grams) == 0: return -1
     novelty = 1 - (len(overlapp) / len(summary_n_grams))
-    if True:
-        '''
-        print(text_content)
-        print(summary)
-        print([tri_gram for tri_gram in summary_n_grams if tri_gram not in overlapp])
-        print(overlapp)
-        print()
-        '''
+    if False:
         nb_insertions = 0
         summary_tokens = process_and_split_text(summary)
         n_gram_found = False
@@ -52,13 +42,9 @@ def compute_novelty(summary, text_content, n_gram_n):
                 n_gram_found = True
 
         novelty = nb_insertions / (len(summary_tokens) -n_gram_n+1)
-        if novelty < 0.4:
-            print(text_content)
-            print(summary, novelty)
-            print()
 
     return novelty
-
+'''
 count = 0
 total = 0
 nov_dist = [0] * 12
@@ -78,3 +64,4 @@ for d in data:
 print(total/count)
 
 
+'''
