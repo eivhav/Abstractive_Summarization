@@ -33,7 +33,7 @@ class RougePerlVersion():
 class RougeSumeval():
     def __init__(self, rouge_variants):
         self.rouge_variants = rouge_variants
-        self.rouge_calc = RougeCalculator(stopwords=False, lang="en")
+        self.rouge_calc = RougeCalculator(stopwords=True, lang="en", stemming=True)
         self.availeble_calcs = {"ROUGE-1-F": self.rouge_calc.rouge_1,
                                 "ROUGE-2-F": self.rouge_calc.rouge_2,
                                 "ROUGE-L-F": self.rouge_calc.rouge_l}
