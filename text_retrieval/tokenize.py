@@ -127,6 +127,21 @@ def fix_tokenized_4(text):
 
 import unicodedata
 
+def add_punct(text):
+    if text.strip()[-1].isdigit() or text.strip()[-1].isalpha():
+        return text.strip() + "."
+    return text.strip()
+
+
+def tokenize_text(text, nlp):
+    text = text.replace("(S)", "").replace("(M)", "").replace("‘", "'").replace("’", "'")
+    text = unicodedata.normalize("NFKD", text)
+    text = remove_http_url(text)
+    text = text.replace("   ", " ").replace("  ", " ").replace("-", "_").strip()
+    return " ".join([t.text for t in nlp(text)]).replace("' '", "''").replace("_", "-")
+
+
+
 def tokenize_data_common(out_path, nlp, articles, p_id, corpus):
     count = 0
     results = dict()
@@ -135,29 +150,29 @@ def tokenize_data_common(out_path, nlp, articles, p_id, corpus):
         if 'summary_items' not in article.keys() or 'headline' not in article.keys(): continue
         count += 1
         if count % 1000 == 0:
-            with open(out_path+ "tokenized_common/"+corpus+"_tok_"+str(int(count/1000)) + "000_"+str(p_id)+".txt", "w") as handle:
+            with open(out_path+ "tokenized_final/"+corpus+"_tok_"+str(int(count/1000)) + "000_"+str(p_id)+".txt", "w") as handle:
                 handle.write(json.dumps(results))
             results = dict()
 
         results[key] = article
         for type in ['headline', 'summary_items', 'text_content']:
             if isinstance(article[type], list):
-                if type == 'summary_items': text = ". ".join(s.strip() for s in article[type] if len(s) > 10)
-                elif type == 'text_content': text = " ".join(s.strip() for s in article[type])
-                elif type == 'headline': text = article[type][0]
+                if type == 'summary_items':
+                    text = " <NewLine> ".join([tokenize_text(add_punct(s.strip()), nlp) for s in article[type] if len(s) > 10])
+                elif type == 'text_content':
+                    text = tokenize_text(" ".join(add_punct(s.strip()) for s in article[type]), nlp)
+                elif type == 'headline':
+                    text = tokenize_text(article[type][0], nlp)
             else:
-                text = article[type]
-            text = text.replace("(S)", "").replace("(M)", "").replace("‘", "'").replace("’", "'")
-            text = unicodedata.normalize("NFKD", text)
-            text = remove_http_url(text)
-            text = text.replace("   ", " ").replace("  ", " ").replace("-", "_")
-            results[key]['tok_' + type] = " ".join([t.text for t in nlp(text)]).replace("' '", "''").replace("_", "-")
+                text = tokenize_text(article[type], nlp)
+
+            results[key]['tok_' + type] = text
 
         if count % 250 == 0:
             print(p_id, count, 100*count/len(articles), time.time() - start)
 
 
-    with open(out_path+ "tokenized_common/"+corpus+"_tok_last"+str(p_id)+".txt", "w") as handle:
+    with open(out_path+ "tokenized_final/"+corpus+"_tok_last"+str(p_id)+".txt", "w") as handle:
         handle.write(json.dumps(results))
 
 

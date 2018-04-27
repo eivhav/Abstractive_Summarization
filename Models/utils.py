@@ -90,15 +90,34 @@ class TrainingLogger():
         self.nb_epochs = nb_epochs
         self.epoch_size = sample_size
         self.val_size = val_size
+        self.epoch_iter = 0
+        self.init_epoch(0)
+
+    def add_iteration_v2(self, iter, loss, _time):
 
 
-
-    def add_iteration(self, step, loss, _time):
         self.log[self.epoch_nb]["loss"] += loss
         self.log[self.epoch_nb]["time"] += _time
-        predicted_time = ((self.epoch_size / self.batch_size) / step) * self.log[self.epoch_nb]["time"]
+
+        samples_trained = (self.epoch_iter * self.batch_size) % self.epoch_size
+        time_per_sample = self.log[self.epoch_nb]["time"] / samples_trained
+        remaining_time = (self.epoch_size - samples_trained) * time_per_sample
+        self.progress_bar(self.epoch_iter, self.epoch_size / self.batch_size,
+                          self.log[self.epoch_nb]["loss"] / self.epoch_iter,
+                          remaining_time, self.epoch_nb)
+
+
+
+    def add_iteration(self, iter, loss, _time):
+        if iter * self.batch_size > (self.epoch_nb * self.epoch_size):
+            self.init_epoch(self.epoch_nb + 1)
+        self.epoch_iter += 1
+
+        self.log[self.epoch_nb]["loss"] += loss
+        self.log[self.epoch_nb]["time"] += _time
+        predicted_time = ((self.epoch_size / self.batch_size) / self.epoch_iter) * self.log[self.epoch_nb]["time"]
         remaining_time = predicted_time - self.log[self.epoch_nb]["time"]
-        self.progress_bar(step, self.epoch_size/self.batch_size, self.log[self.epoch_nb]["loss"]/step, remaining_time,
+        self.progress_bar(self.epoch_iter, self.epoch_size/self.batch_size, self.log[self.epoch_nb]["loss"]/self.epoch_iter, remaining_time,
                           self.epoch_nb)
 
     def add_val_iteration(self, step, loss, _time):
@@ -107,10 +126,11 @@ class TrainingLogger():
 
 
     def init_epoch(self, epoch):
-        if epoch > 0: print("Epoch complete. Validation loss: ", self.batch_size* self.log[epoch -1]["val_loss"] / self.val_size)
         print("Epoch: ", epoch)
         self.epoch_nb = epoch
         self.log[epoch] = {"loss": 0, 'time': 0, "val_loss": 0, "val_time": 0}
+        self.epoch_iter = 0
+
 
     def progress_bar(self, step_nb, nb_steps, loss, time_left, e):
         sys.stdout.write('\r')
@@ -163,39 +183,3 @@ def translate_word(token, text_pair, vocab):
     return 3
 
 
-def predict_and_print(pair, encoder, decoder, input_length, target_length, SOS_token, vocab, use_cuda, UNK_token):
-    print(pair.get_text(pair.full_target_tokens, vocab))
-
-    input_variable, full_input_variable, _, _, decoder_input = \
-        get_batch_variables([pair], input_length, target_length, use_cuda, SOS_token)
-
-    encoder_hidden = encoder.init_hidden(1, use_cuda)
-
-    encoder_outputs, encoder_hidden = encoder(input_variable, encoder_hidden)
-    decoder_hidden = torch.cat((encoder_hidden[0], encoder_hidden[1]), -1)
-
-    result = []
-    gen_sequence = []
-    for token_i in range(target_length):
-
-        decoder_hidden, p_final, p_gen, p_vocab, attention_dist = decoder(decoder_input, decoder_hidden, encoder_outputs, full_input_variable)
-        '''
-        p_word, decoded_word_idx = p_final.max(1)
-        decoded_word = translate_word(decoded_word_idx.data[0], pair, dataset.vocab)
-        p_att, attended_pos = attention_dist.max(1)
-        attended_word = translate_word(pair.full_source_tokens[attended_pos.data[0]], pair, dataset.vocab)
-
-        if decoded_word_idx.data[0] < 25000: decoder_input = Variable(torch.LongTensor([[decoded_word_idx.data[0]]]))
-        else: decoder_input = Variable(torch.LongTensor([[UNK_token]]))
-        if use_cuda: decoder_input = decoder_input.cuda()
-
-        result.append({'p_gen': round(p_gen.data[0][0], 3),'word': decoded_word, 'p_word': round(p_word.data[0], 3),
-                      'att_word': attended_word, 'p_att': round(p_att.data[0], 3)})
-        '''
-        p_vocab_word, vocab_word_idx = p_vocab.max(1)
-
-        gen_sequence.append((translate_word(vocab_word_idx.data[0], pair, vocab), round(p_vocab_word.data[0], 3)))
-
-    return result, gen_sequence
-
-#predict_and_print(training_pairs[20])

@@ -26,8 +26,18 @@ def retrieve_meta_data_cnn(soup):
 def parse_online_tokenized(text):
 
     def replace(s):
-        return s.replace("`", "'").replace("-LRB-", "(").replace("-RRB-", ")")\
+        return s.replace("`", "'").replace("``", "''").replace("-LRB-", "(").replace("-RRB-", ")")\
             .replace("   ", " ").replace("  "," ").strip()
+
+    def fix_punct(s):
+        if len(s) < 5: return s
+        if s.strip()[-1] != "." and s.strip()[-1] != "!" and s.strip()[-1] != "?": return s.strip() + " ."
+        return s.strip()
+
+    def remove_NEW(s):
+        if 'NEW :' == s[:5]: return s[5:].strip()
+        return s
+
 
     story = ""
     story_and_highlights = text.split("\n\n@highlight")
@@ -41,16 +51,17 @@ def parse_online_tokenized(text):
     story = replace(story)
     summary = ""
     if len(story_and_highlights) > 1:
-        summary = " . ".join([h.replace("\n", "").strip() for h in story_and_highlights[1:]])
+        summary = [fix_punct(remove_NEW(h.replace("\n", "").strip())) for h in story_and_highlights[1:] if len(h) > 5]
 
     return {'online_summary': summary, 'online_text_content': story}
 
 
-def correct_online(data_path, tok_folder, online_folder):
+def correct_online(data_path, tok_folder, online_folder,):
 
     tokenized_data = dict()
     print("loading tokenized data")
     files = list(glob.iglob(data_path + tok_folder + "*.txt"))
+
     for file in files:
         d = json.load(open(file))
         for k in d.keys(): tokenized_data[k.split("/")[-1].split(".html")[0]] = d[k]
@@ -59,6 +70,7 @@ def correct_online(data_path, tok_folder, online_folder):
     files = list(glob.iglob(data_path + online_folder + "*.story"))
     print("loading parsing data data")
     count = 0
+
     for file in files:
         if file.split("/")[-1].split(".story")[0]:
             count += 1
@@ -76,19 +88,21 @@ def correct_online(data_path, tok_folder, online_folder):
             count += 1
             results[key] =tokenized_data[key]
             if count % 1000 == 0:
-                with open(data_path+ "combined_2/" + "CNN_" + str(int(count / 1000)) + "000" + ".txt", "w") as handle:
+                with open(data_path+ "combined_3/" + "DM_" + str(int(count / 1000)) + "000" + ".txt", "w") as handle:
                    handle.write(json.dumps(results))
                 results = dict()
             if count % 1000 == 0: print(count)
 
-    with open(data_path + "combined_2/" + "CNN_last" + str(int(count / 1000)) + "000" + ".txt", "w") as handle:
+    with open(data_path + "combined_3/" + "DM_last" + ".txt", "w") as handle:
         handle.write(json.dumps(results))
     results = dict()
 
 
-data_path = '/home/havikbot/MasterThesis/Data/CNN/'
+data_path = '/home/havikbot/MasterThesis/Data/DailyMail/'
 tok_folder = 'combined/'
-online_folder = 'cnn_online_tokenized/'
+online_folder = 'dm_tokenized_online/'
+
+correct_online(data_path, tok_folder, online_folder)
 
 
 
