@@ -32,9 +32,10 @@ model_id = 'DM_CNN_50k_Coverage_DecoderAttn_novelty=02_start_test_RL'
 
 config = {'model_type': 'Combo',
           'embedding_size': 128, 'hidden_size': 256,
+          'temporal_att': False, 'bilinear_attn': False,
+          'decoder_att': True, 'input_in_pgen': True,
           'input_length': 400, 'target_length': 50,
           'model_path': current+ model_path, 'model_id': model_id }
-
 
 
 pointer_gen_model = PGModel(config=config, vocab=data_loader.vocab, use_cuda=use_cuda)
@@ -46,8 +47,8 @@ pointer_gen_model.load_model(file_path='/home/havikbot/MasterThesis/Models/',
 '''
 
 #reward_module = RougePerlVersion(rouge_variants=["ROUGE-L-F"])
-reward_module = RougeSumeval(rouge_variants=["ROUGE-2-F", "ROUGE-L-F"])
-trainer = SelfCriticalTrainer(model=pointer_gen_model, tag=model_id, rl_lambda=0.90,
+reward_module = RougeSumeval(rouge_variants=["ROUGE-2-F", "ROUGE-L-F"], remove_stopwords=False, stem=False)
+trainer = SelfCriticalTrainer(model=pointer_gen_model, tag=model_id, rl_lambda=0.98,
                               reward_module=reward_module, reward_min=-1)
 
 #trainer = MLE_Novelty_Trainer(pointer_gen_model, model_id. novelty_loss)
