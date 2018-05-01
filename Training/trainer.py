@@ -52,7 +52,7 @@ class Trainer():
 
         val_batches = data_loader.load_data('val', batch_size)
         loss_values = dict()
-        for batch in val_batches[:1]:
+        for batch in val_batches[:50]:
             _time, losses = self.train_batch(batch, use_cuda=self.model.use_cuda, backprop=False)
             if len(loss_values) == 0:
                 for k in losses: loss_values[k] = 0
@@ -60,11 +60,11 @@ class Trainer():
         for k in loss_values:
             self.writer.add_scalar('2-Validation/'+k, loss_values[k] / len(val_batches[:50]), iter)
 
-        greedy_scores = self.score_model(val_batches[0:1], use_cuda, beam=False)
+        greedy_scores = self.score_model(val_batches[0:50], use_cuda, beam=False)
         for score_type in greedy_scores:
             self.writer.add_scalar('3-Greedy/'+ score_type, greedy_scores[score_type], iter)
 
-        beam_scores = self.score_model([b[0:10] for b in val_batches[0:1]], use_cuda, beam=5)
+        beam_scores = self.score_model([b[0:10] for b in val_batches[0:50]], use_cuda, beam=5)
         for score_type in beam_scores:
             self.writer.add_scalar('4-Beam/'+ score_type, beam_scores[score_type], iter)
 
@@ -92,7 +92,7 @@ class Trainer():
         results = []
 
         for b in range(len(val_batches)):
-            preds = self.model.predict_v2(val_batches[b], 75, beam, use_cuda)
+            preds = self.model.predict_v2(val_batches[b], 120, beam, use_cuda)
             for p in range(len(val_batches[b])):
                 pair = val_batches[b][p]
                 ref = pair.get_text(pair.full_target_tokens, self.model.vocab).replace(" EOS", "")
