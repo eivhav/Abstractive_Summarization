@@ -1,5 +1,5 @@
 from __future__ import unicode_literals, print_function, division
-
+import json
 
 import Models.utils as utils
 from Models.utils import *
@@ -15,6 +15,8 @@ class Trainer():
         self.model = model
         self.max_pool = nn.MaxPool2d((3, 1), stride=(1, 1))
         self.writer = SummaryWriter(comment=tag)
+        self.sample_predictions = dict()
+        self.test_samples = None
 
 
 
@@ -50,7 +52,7 @@ class Trainer():
 
         val_batches = data_loader.load_data('val', batch_size)
         loss_values = dict()
-        for batch in val_batches[:50]:
+        for batch in val_batches[:1]:
             _time, losses = self.train_batch(batch, use_cuda=self.model.use_cuda, backprop=False)
             if len(loss_values) == 0:
                 for k in losses: loss_values[k] = 0
@@ -58,20 +60,30 @@ class Trainer():
         for k in loss_values:
             self.writer.add_scalar('2-Validation/'+k, loss_values[k] / len(val_batches[:50]), iter)
 
-        greedy_scores = self.score_model(val_batches[0:50], use_cuda, beam=False)
+        greedy_scores = self.score_model(val_batches[0:1], use_cuda, beam=False)
         for score_type in greedy_scores:
             self.writer.add_scalar('3-Greedy/'+ score_type, greedy_scores[score_type], iter)
 
-        beam_scores = self.score_model([b[0:10] for b in val_batches[0:50]], use_cuda, beam=5)
+        beam_scores = self.score_model([b[0:10] for b in val_batches[0:1]], use_cuda, beam=5)
         for score_type in beam_scores:
             self.writer.add_scalar('4-Beam/'+ score_type, beam_scores[score_type], iter)
 
-        test_sample = data_loader.sample_training_batch(1)
-        preds = self.model.predict(test_sample, self.model.config['target_length'], False, self.model.use_cuda)
-        self.writer.add_text('Greedy Prediction', " ".join([t[0]['word'] for t in preds]), iter)
+        if len(self.sample_predictions) < 5:
+            self.test_samples = data_loader.sample_training_batch(5)
+            for sample in self.test_samples:
+                self.sample_predictions[sample.id] = {'1source:': " ".join(sample.source[:400]).split(" . "),
+                                                      '2target': [" ".join(t) for t in sample.target],
+                                                      '3beam': dict(), '4greedy': dict()
+                                                      }
 
-        preds_beam = self.model.predict(test_sample, self.model.config['target_length'], 5, self.model.use_cuda)
-        self.writer.add_text('Beam Prediction', preds_beam[0][0], iter)
+        preds = self.model.predict_v2(self.test_samples, self.model.config['target_length'], False, self.model.use_cuda)
+        preds_beam = self.model.predict_v2(self.test_samples, self.model.config['target_length'], 5, self.model.use_cuda)
+        for i in range(len(self.test_samples)):
+            self.sample_predictions[self.test_samples[i].id]['3beam'][iter] = preds_beam[i][0][0]
+            self.sample_predictions[self.test_samples[i].id]['4greedy'][iter] = " ".join([t[i]['word'] for t in preds])
+
+        log_dir = self.writer.file_writer.get_logdir()
+        with open(log_dir+'/predictions.json', 'w') as outfile: json.dump(self.sample_predictions, outfile)
 
 
 
@@ -80,7 +92,7 @@ class Trainer():
         results = []
 
         for b in range(len(val_batches)):
-            preds = self.model.predict_v2(val_batches[b], 120, beam, use_cuda)
+            preds = self.model.predict_v2(val_batches[b], 75, beam, use_cuda)
             for p in range(len(val_batches[b])):
                 pair = val_batches[b][p]
                 ref = pair.get_text(pair.full_target_tokens, self.model.vocab).replace(" EOS", "")

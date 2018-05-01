@@ -2,7 +2,7 @@ from __future__ import unicode_literals, print_function, division
 
 import sys
 import os
-os.environ["CUDA_VISIBLE_DEVICES"]="1"
+os.environ["CUDA_VISIBLE_DEVICES"]="0"
 
 samuel = '/srv/'
 x99 = '/home/'
@@ -28,13 +28,13 @@ data_loader = DataLoader(data_path, 100)
 
 # 'TemporalAttn' or CoverageAttn
 
-model_id = 'DM_CNN50k_Coverage_DecoderAttn_max60_SC=0.9984_PerlL2_neg_rw'
+model_id = 'DM_CNN50k_Coverage_DecoderAttn_max60_SC=0.9984_PerlL2_neg_rw_test'
 
 config = {'model_type': 'Combo',
           'embedding_size': 128, 'hidden_size': 256,
           'temporal_att': False, 'bilinear_attn': False,
           'decoder_att': True, 'input_in_pgen': True,
-          'input_length': 400, 'target_length': 101,
+          'input_length': 400, 'target_length': 45,
           'model_path': current+ model_path, 'model_id': model_id }
 
 
