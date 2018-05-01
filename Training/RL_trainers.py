@@ -93,8 +93,9 @@ class SelfCriticalTrainer(Trainer):
             if token_i == 0: p_gens = p_gen.unsqueeze(-1)
             else: p_gens = torch.cat((p_gens, p_gen.unsqueeze(-1)), 1)
 
-        baseline_reward = self.reward_module.compute_reward(samples, baseline_seq, self.model)
-        sampled_reward = self.reward_module.compute_reward(samples, sampled_seq, self.model)
+        rewards = self.reward_module.compute_reward(samples+samples, baseline_seq+sampled_seq, self.model)
+        baseline_reward = rewards[0:len(samples)]
+        sampled_reward = rewards[len(samples):]
 
         reward_delta = [max(self.reward_min, (sampled_reward[i] - baseline_reward[i]))
                         for i in range(len(baseline_reward))]

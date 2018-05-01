@@ -166,7 +166,7 @@ class MLE_Trainer():
 
         for b in range(len(val_batches)):
             print(b)
-            preds = self.model.predict_v2(val_batches[b], 75, beam, use_cuda)
+            preds = self.model.predict_v2(val_batches[b], 120, beam, use_cuda)
             for p in range(len(val_batches[b])):
                 pair = val_batches[b][p]
                 ref = pair.get_text(pair.full_target_tokens, self.model.vocab).replace(" EOS", "")

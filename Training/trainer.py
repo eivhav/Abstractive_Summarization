@@ -40,7 +40,7 @@ class Trainer():
 
             if iter % print_evry == 0:
                 self.validate_model(data_loader, iter, batch_size, use_cuda, novelty_loss)
-                if iter % (print_evry*3) == 0 and iter != 0:
+                if iter % print_evry == 0 and iter != 0:
                     self.model.save_model(self.model.config['model_path'], self.model.config['model_id'], epoch=iter, loss=0)
 
 
@@ -75,12 +75,12 @@ class Trainer():
 
 
 
-    def score_model(self, val_batches, use_cuda, beam):
+    def score_model(self, val_batches, use_cuda, beam, verbose=False):
 
         results = []
 
         for b in range(len(val_batches)):
-            preds = self.model.predict_v2(val_batches[b], 75, beam, use_cuda)
+            preds = self.model.predict_v2(val_batches[b], 120, beam, use_cuda)
             for p in range(len(val_batches[b])):
                 pair = val_batches[b][p]
                 ref = pair.get_text(pair.full_target_tokens, self.model.vocab).replace(" EOS", "")
@@ -94,12 +94,14 @@ class Trainer():
                     results[-1]['novelty'] = pair.compute_novelty(
                         pair.get_tokens(results[-1]['seq'].split(" "), self.model.vocab))
 
+            if b % 10 == 0 and verbose: print(b, ": ", len(val_batches))
+
         rouge_calc = RougeCalculator(stopwords=False, lang="en")
         scores = {"Rouge_1": 0, "Rouge_2": 0, "Rouge_L": 0, "Tri_novelty": 0}
         if not beam: scores["p_gens"] = 0
 
+        if verbose: print("Computing SumEval scores")
         summaries, references = [], []
-
         for result in results:
             summaries.append(result['seq'])
             references.append(result['ref'])
@@ -111,6 +113,7 @@ class Trainer():
 
         for k in scores: scores[k] = scores[k] / len(results)
 
+        if verbose: print("Computing Perl scores")
         perl_scores = self.score_rouge_org(summaries, references)
         for k in perl_scores:
             if k[-1] != "R":

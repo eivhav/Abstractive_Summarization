@@ -154,3 +154,29 @@ dataset.create_dataset([path_dm_online, path_cnn_online], 'online_text_content',
 dataset.create_manifest(100)
 dataset.dump_dataset('/home/havikbot/MasterThesis/Data/Model_data/CNN_DM/')
 
+
+
+
+def re_bucketing(manifest, limits, nb_buckets=100):
+    manifest['training']['buckets'] = {}
+    for limit in limits:
+        data = [(k, manifest['training']['samples'][k]) for k in manifest['training']['samples']]
+        manifest['training']['buckets'][limit] = []
+        sorted_samples = sorted(data,
+                        key=lambda tup: sum([tup[1]['target_lengths'][i] for i in range(len(tup[1]['target_lengths']))
+                                              if sum([tup[1]['target_lengths'][j] for j in range(i+1)]) <= limit]))
+
+        bucket_size = int(len(sorted_samples) / nb_buckets)
+        buckets = [sorted_samples[bucket_size * i:bucket_size * (i + 1)] for i in range(nb_buckets)]
+        print(len(buckets))
+        for b in range(len(buckets)):
+            manifest['training']['buckets'][limit].append([pair[0] for pair in buckets[b]])
+
+    return manifest
+
+
+
+
+
+
+
