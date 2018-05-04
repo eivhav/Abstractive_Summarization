@@ -212,7 +212,7 @@ class PGModel():
 
             search_complete = [False for i in range(len(samples))]
             top_beams = [[Beam(decoder_input.narrow(0, i, 1), decoder_h_states.narrow(0, i, 1),
-                               decoder_hidden.narrow(0, i, 1), previous_att, [], [])] for i in range(len(samples))]
+                               decoder_hidden.narrow(0, i, 1), previous_att, [], [], [])] for i in range(len(samples))]
 
             first = True
             while False in search_complete:
@@ -234,31 +234,34 @@ class PGModel():
                     for b in predictions[sample]:
                         beam = b[0]
 
-                        p_final, decoder_h_states, decoder_hidden, previous_att = b[1], b[2], b[3], b[4]
+                        p_final, decoder_h_states, decoder_hidden, previous_att, p_gens = b[1], b[2], b[3], b[4], b[5]
                         p_top_words, top_indexes = p_final.topk(beam_size)
 
                         for k in range(beam_size):
                             non_masked_word = top_indexes.data[0][k]
+
                             if top_indexes.data[0][k] >= self.vocab.vocab_size:
                                 top_indexes.data[0][k] = self.vocab.word2index['UNK']
 
                             new_beams[sample].append(Beam(top_indexes.narrow(1, k, 1),
                                                   decoder_h_states, decoder_hidden, previous_att,
                                                   beam.log_probs + [p_top_words.data[0][k]],
-                                                  beam.sequence + [non_masked_word]))
+                                                  beam.sequence + [non_masked_word],
+                                                  beam.p_gens + [p_gens.data[0][0]]))
 
                             if len(new_beams[sample][-1].sequence) == target_length or top_indexes.data[0][k] == \
                                     self.vocab.word2index['EOS']:
                                 new_beams[sample][-1].complete = True
 
                     all_beams = sorted([(b, b.compute_score()) for b in new_beams[sample]], key=lambda tup: tup[1])
-                    if len(all_beams) > beam_size: all_beams = all_beams[:beam_size]
+                    if len(all_beams) > beam_size:
+                        all_beams = all_beams[:beam_size]
                     top_beams[sample] = [beam[0] for beam in all_beams]
 
                     if len([True for b in top_beams[sample] if b.complete]) == beam_size: search_complete[sample] = True
 
-            return [[[" ".join([str(utils.translate_word(t, samples[0], self.vocab)) for t in b.sequence]),
-                     b.compute_score()] for b in top_beams[sample]] for sample in range(len(samples))]
+            return [[[" ".join([str(utils.translate_word(t, samples[sample], self.vocab)) for t in b.sequence]),
+                     b.compute_score(), b.avg_p_gens()] for b in top_beams[sample]] for sample in range(len(samples))]
 
 
 
@@ -297,7 +300,7 @@ class PGModel():
         for s in range(len(batch_beams)):
             for beam in batch_beams[s]:
                 results[s].append([beam] + [tensor.narrow(0, idx, 1) for tensor in
-                                            [p_final, decoder_h_states, decoder_hidden, previous_att]])
+                                            [p_final, decoder_h_states, decoder_hidden, previous_att, p_gen]])
                 idx += 1
 
         return results

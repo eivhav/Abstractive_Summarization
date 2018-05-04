@@ -24,17 +24,17 @@ data_path = '/home/havikbot/MasterThesis/Data/Model_data/CNN_DM/'
 model_path = 'havikbot/MasterThesis/Models/'
 
 
-data_loader = DataLoader(data_path, 100)
+data_loader = DataLoader(data_path, 75)
 
 # 'TemporalAttn' or CoverageAttn
 
-model_id = 'DM_CNN50k_Coverage_DecoderAttn_max60_SC=0.9984_PerlL2_neg_rw_test'
+model_id = 'DM_CNN_50k_TempBil_MLE_tf=85_lr=e3_max75'
 
 config = {'model_type': 'Combo',
           'embedding_size': 128, 'hidden_size': 256,
-          'temporal_att': False, 'bilinear_attn': False,
+          'temporal_att': True, 'bilinear_attn': True,
           'decoder_att': True, 'input_in_pgen': True,
-          'input_length': 400, 'target_length': 45,
+          'input_length': 400, 'target_length': 76,
           'model_path': current+ model_path, 'model_id': model_id }
 
 
@@ -42,7 +42,7 @@ pointer_gen_model = PGModel(config=config, vocab=data_loader.vocab, use_cuda=use
 
 '''
 pointer_gen_model.load_model(file_path='/home/havikbot/MasterThesis/Models/',
-                              file_name='checkpoint_DM_CNN_50k_Coverage_DecoderAttn_ep@45000_loss@0.pickle')
+            file_name='checkpoint_DM_CNN_50k_cont_Coverage_DecoderAttn_SC=1_PerlL2_pos_rws_ep@17400_loss@0.pickle')
 
 '''
 #reward_module = RougePerlVersion(rouge_variants=["ROUGE-L-F", "ROUGE-2-F"], nb_workers=8)
@@ -52,9 +52,9 @@ pointer_gen_model.load_model(file_path='/home/havikbot/MasterThesis/Models/',
 trainer = MLE_Novelty_Trainer(pointer_gen_model, model_id, novelty_lambda=0)
 
 
-trainer.train(data_loader=data_loader, nb_epochs=25, batch_size=16,
+trainer.train(data_loader=data_loader, nb_epochs=25, batch_size=25,
                         optimizer=torch.optim.Adam, lr=0.001,
-                        tf_ratio=1.0, stop_criterion=None,
+                        tf_ratio=0.85, stop_criterion=None,
                         use_cuda=True, print_evry=1000, start_iter=1
                         )
 

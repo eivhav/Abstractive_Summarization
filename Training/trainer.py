@@ -5,6 +5,7 @@ import Models.utils as utils
 from Models.utils import *
 from Models.pointer_gen import *
 from Data.data_loader import *
+import torch
 
 from tensorboardX import SummaryWriter
 from sumeval.metrics.rouge import RougeCalculator
@@ -22,6 +23,7 @@ class Trainer():
 
     def train(self, data_loader, nb_epochs, batch_size, optimizer, lr, tf_ratio, stop_criterion,
               use_cuda, print_evry, novelty_loss=-1, start_iter=0, new_optm=True):
+
 
         if new_optm or self.model.encoder_optimizer is None:
             self.model.encoder_optimizer = optimizer(self.model.encoder.parameters(), lr= lr)
@@ -92,7 +94,7 @@ class Trainer():
         results = []
 
         for b in range(len(val_batches)):
-            preds = self.model.predict_v2(val_batches[b], 120, beam, use_cuda)
+            preds = self.model.predict_v2(val_batches[b], 100, beam, use_cuda)
             for p in range(len(val_batches[b])):
                 pair = val_batches[b][p]
                 ref = pair.get_text(pair.full_target_tokens, self.model.vocab).replace(" EOS", "")
@@ -103,14 +105,14 @@ class Trainer():
                     results[-1]['novelty'] = pair.compute_novelty([s['token_idx'] for s in seq[:len(results[-1]['seq'])]])
                 else:
                     results.append({'ref': ref, 'seq': preds[p][0][0].split(" EOS")[0]})
+                    results[-1]['p_gen'] = preds[p][0][2]
                     results[-1]['novelty'] = pair.compute_novelty(
                         pair.get_tokens(results[-1]['seq'].split(" "), self.model.vocab))
 
             if b % 10 == 0 and verbose: print(b, ": ", len(val_batches))
 
         rouge_calc = RougeCalculator(stopwords=False, lang="en")
-        scores = {"Rouge_1": 0, "Rouge_2": 0, "Rouge_L": 0, "Tri_novelty": 0}
-        if not beam: scores["p_gens"] = 0
+        scores = {"Rouge_1": 0, "Rouge_2": 0, "Rouge_L": 0, "Tri_novelty": 0, "p_gens": 0}
 
         if verbose: print("Computing SumEval scores")
         summaries, references = [], []
@@ -147,9 +149,14 @@ class Trainer():
                             resampling=False, samples=1000, favor=True, p=0.5)
         return rouge.calc_score()
 
-    def mask_input(self, input_var):
+    def mask_input(self, input_var, UNK_vector=None):
+        if UNK_vector is not None:
+            mask = input_var.ge(self.model.vocab.vocab_size).long()
+            return ((1 - mask) * input_var) + (mask * UNK_vector)
+
         for i in range(input_var.size()[0]):
-            if input_var.data[i] >= self.model.vocab.vocab_size: input_var.data[i] = self.model.vocab.word2index['UNK']
+            if input_var.data[i] >= self.model.vocab.vocab_size:
+                input_var.data[i] = self.model.vocab.word2index['UNK']
         return input_var
 
 

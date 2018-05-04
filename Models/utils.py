@@ -146,11 +146,12 @@ class TrainingLogger():
 
 
 class Beam():
-    def __init__(self, decoder_input, decoder_h_states, decoder_hidden, previous_att, log_probs, sequence):
+    def __init__(self, decoder_input, decoder_h_states, decoder_hidden, previous_att, log_probs, sequence, p_gens):
         self.decoder_input = decoder_input
         self.decoder_hidden = decoder_hidden
         self.decoder_h_states = decoder_h_states
         self.previous_att = previous_att
+        self.p_gens = p_gens
 
         self.log_probs = log_probs
         self.sequence = sequence
@@ -174,6 +175,9 @@ class Beam():
             score += p
         return score / len(self.sequence)
 
+    def avg_p_gens(self):
+        if len(self.p_gens) == 0: return 0
+        return sum(self.p_gens) / len(self.p_gens)
 
 
 def translate_word(token, text_pair, vocab):

@@ -33,6 +33,7 @@ class SelfCriticalTrainer(Trainer):
             utils.get_batch_variables(samples, self.model.config['input_length'], target_length, use_cuda,
                                       self.model.vocab.word2index['SOS'])
 
+        UNK_vector = Variable(torch.LongTensor([self.model.vocab.word2index['UNK'] for i in range(len(samples))])).cuda()
         encoder_hidden = self.model.encoder.init_hidden(len(samples), use_cuda)
         self.model.encoder_optimizer.zero_grad()
         self.model.decoder_optimizer.zero_grad()
@@ -86,9 +87,9 @@ class SelfCriticalTrainer(Trainer):
             if random.uniform(0, 1) < tf_ratio: mle_decoder_input = target_variable.narrow(1, token_i, 1).squeeze(-1)
             else: _, mle_decoder_input = p_final_mle.max(1)
 
-            decoder_input = torch.cat((self.mask_input(action_baseline),
-                                       self.mask_input(action_sampling),
-                                       self.mask_input(mle_decoder_input)), 0).unsqueeze(1)
+            decoder_input = torch.cat((self.mask_input(action_baseline, UNK_vector),
+                                       self.mask_input(action_sampling, UNK_vector),
+                                       self.mask_input(mle_decoder_input, UNK_vector)), 0).unsqueeze(1)
 
             if token_i == 0: p_gens = p_gen.unsqueeze(-1)
             else: p_gens = torch.cat((p_gens, p_gen.unsqueeze(-1)), 1)
@@ -122,11 +123,6 @@ class SelfCriticalTrainer(Trainer):
         return_values['p_gens'] = p_gens.sum(-1).sum().data[0] / (target_length * len(samples) * 3)
 
         return time.time() - start, return_values
-
-
-
-
-
 
 
 
