@@ -24,15 +24,15 @@ data_path = '/home/havikbot/MasterThesis/Data/Model_data/CNN_DM/'
 model_path = 'havikbot/MasterThesis/Models/'
 
 
-data_loader = DataLoader(data_path, 75)
+data_loader = DataLoader(data_path, 75, 0.95, s_damp=0.2)
 
 # 'TemporalAttn' or CoverageAttn
 
-model_id = 'DM_CNN_50k_TempBil_MLE_tf=85_lr=e3_max75'
+model_id = 'DM_CNN_50k_Coverage_DecoderAttn_MLE_tf=85_lr=1e3_max75_NoveltySample95d005'
 
 config = {'model_type': 'Combo',
           'embedding_size': 128, 'hidden_size': 256,
-          'temporal_att': True, 'bilinear_attn': True,
+          'temporal_att': False, 'bilinear_attn': False,
           'decoder_att': True, 'input_in_pgen': True,
           'input_length': 400, 'target_length': 76,
           'model_path': current+ model_path, 'model_id': model_id }
@@ -55,7 +55,7 @@ trainer = MLE_Novelty_Trainer(pointer_gen_model, model_id, novelty_lambda=0)
 trainer.train(data_loader=data_loader, nb_epochs=25, batch_size=25,
                         optimizer=torch.optim.Adam, lr=0.001,
                         tf_ratio=0.85, stop_criterion=None,
-                        use_cuda=True, print_evry=1000, start_iter=1
+                        use_cuda=True, print_evry=1000, start_iter=1, n_sampling_decay=0.005
                         )
 
 

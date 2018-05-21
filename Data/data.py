@@ -40,7 +40,7 @@ class TextPair:
         self.full_target_tokens = []
         self.masked_target_tokens = []
         self.unknown_tokens = dict()
-        self.tri_gram_novelty_vector = []
+        self.tri_gram_novelty_vector = novelty_vec
         self.tri_gram_novelty_degree = 1
         self.source_tri_grams = dict()
 

@@ -9,45 +9,51 @@ from Models.pointer_gen import *
 
 
 class PGModel():
-    def __init__(self, config, vocab, use_cuda):
+    def __init__(self, config, vocab, use_cuda, model_file=None):
         self.use_cuda = use_cuda
         self.config = config
         self.vocab = vocab
+        self.encoder = None
+        self.decoder = None
 
-        self.encoder = EncoderRNN(self.vocab.vocab_size, config['embedding_size'], hidden_size=config['hidden_size'])
-        self.emb_w = self.encoder.embedding.weight # use weight sharing?
-
-        if config['model_type'] == 'Temporal':
-            print('Init Temporal model')
-            self.decoder = TemporalAttnDecoderRNN(config['hidden_size'], config['embedding_size'],
-                                                   self.vocab.vocab_size, 1, dropout_p=0.0, embedding_weight=None)
-        elif config['model_type'] == 'Coverage':
-            print(print('Init Coverage model'))
-            self.decoder = CoverageAttnDecoderRNN(config['hidden_size'], config['embedding_size'],
-                                                  self.vocab.vocab_size, 1, dropout_p=0.0,
-                                                  input_lenght=config['input_length'], embedding_weight=None)
-
-        elif config['model_type'] == 'Combo':
-            print(print('Init combo model'))
-            self.decoder = ComboAttnDecoderRNN(config['hidden_size'], config['embedding_size'],
-                                                  self.vocab.vocab_size, 1, dropout_p=0.0,
-                                                  input_lenght=config['input_length'], embedding_weight=None,
-                                               temporal_att=False, bilinear_attn=False, decoder_att=True,
-                                               input_in_pgen=True)
-
-
+        if model_file is None:
+            self.init_model()
+            self.encoder_optimizer = None
+            self.decoder_optimizer = None
+            self.logger = None
         else:
-            print("No model init")
+            data = torch.load(model_file)
+            if config is None: self.config = data['config']
+            self.init_model()
+            self.encoder.load_state_dict(data['encoder'])
+            self.decoder.load_state_dict(data['decoder'])
+            self.vocab = data['vocab']
+            self.encoder_optimizer = data['encoder_optm']
+            self.decoder_optimizer = data['decoder_optm']
+            self.logger = data['logger']
 
         if use_cuda:
             self.encoder.cuda()
             self.decoder.cuda()
 
-        self.encoder_optimizer = None
-        self.decoder_optimizer = None
         self.criterion = None
-        self.logger = None
-        #print("Model compiled")
+        print("Model compiled")
+
+    def init_model(self):
+        self.encoder = EncoderRNN(self.vocab.vocab_size, self.config['embedding_size'],
+                                    hidden_size=self.config['hidden_size'])
+
+        if 'out_hidden_size' not in self.config: self.config['out_hidden_size'] = 128
+        self.decoder = ComboAttnDecoderRNN(self.config['hidden_size'], self.config['embedding_size'],
+                                           self.vocab.vocab_size, 1,
+                                           dropout_p=0.0,
+                                           input_lenght=self.config['input_length'],
+                                           embedding_weight=None,
+                                           temporal_att= self.config['temporal_att'],
+                                           bilinear_attn= self.config['bilinear_attn'],
+                                           decoder_att=self.config['decoder_att'],
+                                           input_in_pgen=self.config['input_in_pgen'],
+                                           out_hidden_size=self.config['out_hidden_size'])
 
 
     def save_model(self, path, id, epoch, loss):
@@ -261,7 +267,8 @@ class PGModel():
                     if len([True for b in top_beams[sample] if b.complete]) == beam_size: search_complete[sample] = True
 
             return [[[" ".join([str(utils.translate_word(t, samples[sample], self.vocab)) for t in b.sequence]),
-                     b.compute_score(), b.avg_p_gens()] for b in top_beams[sample]] for sample in range(len(samples))]
+                     b.compute_score(), b.avg_p_gens(), b.p_gens, b.previous_att]
+                     for b in top_beams[sample]] for sample in range(len(samples))]
 
 
 

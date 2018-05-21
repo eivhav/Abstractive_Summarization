@@ -15,14 +15,15 @@ class Trainer():
     def __init__(self, model, tag):
         self.model = model
         self.max_pool = nn.MaxPool2d((3, 1), stride=(1, 1))
-        self.writer = SummaryWriter(comment=tag)
+        if len(tag) > 2:
+            self.writer = SummaryWriter(comment=tag)
         self.sample_predictions = dict()
         self.test_samples = None
 
 
 
     def train(self, data_loader, nb_epochs, batch_size, optimizer, lr, tf_ratio, stop_criterion,
-              use_cuda, print_evry, novelty_loss=-1, start_iter=0, new_optm=True):
+              use_cuda, print_evry, novelty_loss=-1, start_iter=0, new_optm=True, n_sampling_decay=None):
 
 
         if new_optm or self.model.encoder_optimizer is None:
@@ -47,6 +48,9 @@ class Trainer():
                 if iter % print_evry == 0 and iter != 0:
                     self.model.save_model(self.model.config['model_path'], self.model.config['model_id'], epoch=iter, loss=0)
 
+                if n_sampling_decay is not None:
+                    data_loader = DataLoader(data_loader.path, data_loader.limit,
+                                             data_loader.filtered - n_sampling_decay)
 
 
 

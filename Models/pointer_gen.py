@@ -184,7 +184,8 @@ class TemporalAttnDecoderRNN(nn.Module):
 
 class ComboAttnDecoderRNN(nn.Module):
     def __init__(self, hidden_size, embedding_size, vocab_size, n_layers=1, dropout_p=0.1, input_lenght=400,
-                 embedding_weight=None, temporal_att=True, bilinear_attn=True, decoder_att=True, input_in_pgen=True ):
+                 embedding_weight=None, temporal_att=True, bilinear_attn=True, decoder_att=True, input_in_pgen=True,
+                 out_hidden_size =128):
         super(ComboAttnDecoderRNN, self).__init__()
         # Parameters
         self.hidden_size = hidden_size
@@ -213,8 +214,8 @@ class ComboAttnDecoderRNN(nn.Module):
 
         # Generator
         self.gen_layer = nn.Linear(self.hidden_size*3 + self.embedding_size + 1, 1)
-        self.out_hidden = nn.Linear((self.hidden_size*3) + 1, self.embedding_size)
-        self.out_vocab = nn.Linear(self.embedding_size, vocab_size)
+        self.out_hidden = nn.Linear((self.hidden_size*3) + 1, out_hidden_size)
+        self.out_vocab = nn.Linear(out_hidden_size, vocab_size)
 
         # Weight_sharing
         if embedding_weight is not None:
