@@ -6,6 +6,7 @@ os.environ["CUDA_VISIBLE_DEVICES"]="0"
 
 samuel = '/srv/'
 x99 = '/home/'
+paperspace = 'home/paperspace/'
 current = x99
 
 sys.path.append(current + 'havikbot/MasterThesis/Code/Abstractive_Summarization/')
