@@ -15,11 +15,11 @@ class PGModel():
         self.vocab = vocab
         self.encoder = None
         self.decoder = None
+        self.encoder_optimizer = None
+        self.decoder_optimizer = None
 
         if model_file is None:
             self.init_model()
-            self.encoder_optimizer = None
-            self.decoder_optimizer = None
             self.logger = None
         else:
             data = torch.load(model_file)
@@ -28,8 +28,8 @@ class PGModel():
             self.encoder.load_state_dict(data['encoder'])
             self.decoder.load_state_dict(data['decoder'])
             self.vocab = data['vocab']
-            self.encoder_optimizer = data['encoder_optm']
-            self.decoder_optimizer = data['decoder_optm']
+            self.encoder_optimizer_state = data['encoder_optm']
+            self.decoder_optimizer_state = data['decoder_optm']
             self.logger = data['logger']
 
         if use_cuda:

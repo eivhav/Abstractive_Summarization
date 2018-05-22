@@ -19,20 +19,23 @@ class Trainer():
             self.writer = SummaryWriter(comment=tag)
         self.sample_predictions = dict()
         self.test_samples = None
-
+        self.beam_batch_size = 8
 
 
     def train(self, data_loader, nb_epochs, batch_size, optimizer, lr, tf_ratio, stop_criterion,
               use_cuda, print_evry, novelty_loss=-1, start_iter=0, new_optm=True, n_sampling_decay=None):
 
+        self.model.encoder_optimizer = optimizer(self.model.encoder.parameters(), lr=lr)
+        self.model.decoder_optimizer = optimizer(self.model.decoder.parameters(), lr=lr)
+        if not new_optm:
+            self.model.encoder_optimizer.load_state_dict(self.model.encoder_optimizer_state)
+            self.model.decoder_optimizer.load_state_dict(self.model.decoder_optimizer_state)
 
-        if new_optm or self.model.encoder_optimizer is None:
-            self.model.encoder_optimizer = optimizer(self.model.encoder.parameters(), lr= lr)
-            self.model.decoder_optimizer = optimizer(self.model.decoder.parameters(), lr= lr)
         self.model.criterion = nn.NLLLoss()
-
         nb_training_samples = len(data_loader.manifest['training']['samples'].keys())
-        self.model.logger = TrainingLogger(nb_epochs, batch_size, sample_size=nb_training_samples, val_size=1)
+
+        if self.model.logger is None:
+            self.model.logger = TrainingLogger(nb_epochs, batch_size, sample_size=nb_training_samples, val_size=1)
 
         for iter in range(start_iter, int(nb_epochs*nb_training_samples/batch_size)):
 
@@ -70,7 +73,12 @@ class Trainer():
         for score_type in greedy_scores:
             self.writer.add_scalar('3-Greedy/'+ score_type, greedy_scores[score_type], iter)
 
-        beam_scores = self.score_model([b[0:10] for b in val_batches[0:50]], use_cuda, beam=5)
+        beam_data = []
+        for b in val_batches[0:50]: beam_data += b[0:10]
+        beam_batches = [beam_data[self.beam_batch_size * i:self.beam_batch_size * (i + 1)]
+                        for i in range(int(500 / self.beam_batch_size) + 1)]
+        beam_scores = self.score_model([b for b in beam_batches if len(b) != 0], use_cuda, beam=5)
+
         for score_type in beam_scores:
             self.writer.add_scalar('4-Beam/'+ score_type, beam_scores[score_type], iter)
 
