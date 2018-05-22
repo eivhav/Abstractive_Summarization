@@ -30,6 +30,8 @@ class Trainer():
         if not new_optm:
             self.model.encoder_optimizer.load_state_dict(self.model.encoder_optimizer_state)
             self.model.decoder_optimizer.load_state_dict(self.model.decoder_optimizer_state)
+            self.model.encoder.eval()
+            self.model.decoder.eval()
 
         self.model.criterion = nn.NLLLoss()
         nb_training_samples = len(data_loader.manifest['training']['samples'].keys())
