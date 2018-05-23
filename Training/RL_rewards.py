@@ -67,6 +67,46 @@ class RougePerlVersion():
         return final_scores
 
 
+class TrigramNovelty:
+    def __init__(self, remove_stopwords=False, stem=False):
+        self.rouge_calc = RougeCalculator(stopwords=remove_stopwords, lang="en", stemming=stem)
+
+    def compute_tri_grams(self, tokens):
+        #print(tokens)
+        return {str(tokens[i]) + "~" + str(tokens[i + 1]) + "~" + str(tokens[i + 2]): True for i in
+                         range(len(tokens) - 2)}
+
+    def compute_reward(self, samples, sequence, model):
+
+        sources = [pair.get_text(pair.full_source_tokens, model.vocab).split(" EOS")[0] for pair in samples]
+        references = [pair.get_text(pair.full_target_tokens, model.vocab).split(" EOS")[0] for pair in samples]
+        summaries = [" ".join([str(token) for token in s]).split(" EOS")[0] for s in sequence]
+
+        scores = []
+        for i in range(len(references)):
+            hyps_tri_grams = [self.compute_tri_grams(self.rouge_calc.tokenize(h, False))
+                              for h in summaries[i].split(" . ") if len(h) > 3]
+            refs_tri_grams = [self.compute_tri_grams(self.rouge_calc.tokenize(r, False))
+                              for r in references[i].split(" . ") if len(r) > 3]
+            refs_tri_grams = {gram: True for l in refs_tri_grams for gram in l.keys()}
+
+            source_tri_grams = [self.compute_tri_grams(self.rouge_calc.tokenize(s, False))
+                                for s in sources[i].split(" . ") if len(s) > 3]
+            source_tri_grams = {gram: True for l in source_tri_grams for gram in l.keys()}
+
+            novelty_count = 0
+            ref_novelty = sum([1 for gram in refs_tri_grams if gram not in source_tri_grams])
+            for hyp in hyps_tri_grams:
+                novelty_count += sum([1 for gram in hyp if gram in refs_tri_grams and gram not in source_tri_grams])
+
+            if ref_novelty ==0: scores.append(0)
+            else: scores.append(novelty_count / ref_novelty)
+
+        return scores
+
+
+
+
 
 class RougeSumeval():
     def __init__(self, rouge_variants, remove_stopwords=False, stem=False):

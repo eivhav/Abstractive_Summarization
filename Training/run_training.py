@@ -22,25 +22,25 @@ from Data.data_loader import *
 use_cuda = torch.cuda.is_available()
 
 data_path = '/home/havikbot/MasterThesis/Data/Model_data/CNN_DM/'
-model_path = 'havikbot/MasterThesis/Models/'
+model_path = 'havikbot/MasterThesis/best_models/Coverage_base/'
 
 
 data_loader = DataLoader(data_path, 75, None, s_damp=0.2)
 
 # 'TemporalAttn' or CoverageAttn
 
-model_id = 'DM_CNN_50k_RealTemporal_DecoderAttn_tf=85_lr=1e3_max75'
+model_id = 'DM_CNN_50k_Coverage_tf=85_lr=1e5_max75_SC1_tri_novel'
 
 config = {'model_type': 'Combo',
           'embedding_size': 128, 'hidden_size': 256,
-          'temporal_att': True, 'bilinear_attn': True,
+          'temporal_att': False, 'bilinear_attn': False,
           'decoder_att': True, 'input_in_pgen': True,
           'input_length': 400, 'target_length': 76,
           'model_path': current+ model_path, 'model_id': model_id }
 
 
 pointer_gen_model = PGModel(config=config, vocab=data_loader.vocab, use_cuda=use_cuda,
-                            model_file=current+ model_path+"checkpoint_DM_CNN_50k_RealTemporal_DecoderAttn_tf=85_lr=1e3_max75_ep@31000_loss@0.pickle" )
+                            model_file=current+ model_path+"checkpoint_DM_CNN_50k_TempBil_MLE_tf=85_lr=e3_max75_ep@79000_loss@0.pickle" )
 
 '''
 pointer_gen_model.load_model(file_path='/home/havikbot/MasterThesis/Models/',
@@ -49,16 +49,17 @@ pointer_gen_model.load_model(file_path='/home/havikbot/MasterThesis/Models/',
 '''
 #reward_module = RougePerlVersion(rouge_variants=["ROUGE-L-F", "ROUGE-2-F"], nb_workers=8)
 #reward_module = RougeSumeval(rouge_variants=["ROUGE-2-F", "ROUGE-L-F"], remove_stopwords=True, stem=False)
-#trainer = SelfCriticalTrainer(model=pointer_gen_model, tag=model_id, rl_lambda=1, reward_module=reward_module, reward_min=0)
+reward_module = TrigramNovelty(remove_stopwords=False, stem=False)
+trainer = SelfCriticalTrainer(model=pointer_gen_model, tag=model_id, rl_lambda=1, reward_module=reward_module, reward_min=0)
 
-trainer = MLE_Novelty_Trainer(pointer_gen_model, model_id, novelty_lambda=0)
-trainer.beam_batch_size = 8
+#trainer = MLE_Novelty_Trainer(pointer_gen_model, model_id, novelty_lambda=0)
+trainer.beam_batch_size = 6
 
 
-trainer.train(data_loader=data_loader, nb_epochs=25, batch_size=25,
-                        optimizer=torch.optim.Adam, lr=0.001,
+trainer.train(data_loader=data_loader, nb_epochs=25, batch_size=10,
+                        optimizer=torch.optim.Adam, lr=0.0001,
                         tf_ratio=0.85, stop_criterion=None,
-                        use_cuda=True, print_evry=1000, start_iter=31000, n_sampling_decay=None, new_optm=False
+                        use_cuda=True, print_evry=1000, start_iter=1, n_sampling_decay=None, new_optm=True
                         )
 
 

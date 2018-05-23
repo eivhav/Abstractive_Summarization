@@ -19,7 +19,7 @@ class Trainer():
             self.writer = SummaryWriter(comment=tag)
         self.sample_predictions = dict()
         self.test_samples = None
-        self.beam_batch_size = 8
+        self.beam_batch_size = 6
 
 
     def train(self, data_loader, nb_epochs, batch_size, optimizer, lr, tf_ratio, stop_criterion,

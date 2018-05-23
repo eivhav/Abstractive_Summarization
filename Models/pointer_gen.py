@@ -289,9 +289,9 @@ class ComboAttnDecoderRNN(nn.Module):
         decoder_h_states = torch.cat((prev_decoder_h_states, decoder_hidden.unsqueeze(1)), 1)
         return p_final, p_gen, p_vocab, att_dist, decoder_h_states, decoder_hidden, previous_att
 
-    def init_zeros(self, batch_size, use_cuda):
-        self.embedding_zero = Variable(torch.zeros(batch_size, self.embedding_size))
-        self.decoder_context_zero = Variable(torch.zeros(batch_size, self.hidden_size))
+    def init_zeros(self, batch_size, use_cuda, volatile=False):
+        self.embedding_zero = Variable(torch.zeros(batch_size, self.embedding_size), volatile=volatile)
+        self.decoder_context_zero = Variable(torch.zeros(batch_size, self.hidden_size), volatile=volatile)
         if use_cuda:
             self.embedding_zero.cuda(), self.decoder_context_zero.cuda()
 

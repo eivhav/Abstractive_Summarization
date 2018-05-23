@@ -49,14 +49,19 @@ def get_most_attn_word(text_pair, att_dist, vocab):
     return tuples
 
 
-def get_batch_variables(samples, input_length, target_length, use_cuda, SOS_token):
+def get_batch_variables(samples, input_length, target_length, use_cuda, SOS_token, volatile=False):
 
-    input_variable = Variable(torch.LongTensor([zero_pad(pair.masked_source_tokens, input_length) for pair in samples]))
-    full_input_variable = Variable(torch.LongTensor([zero_pad(pair.full_source_tokens, input_length) for pair in samples]))
-    target_variable = Variable(torch.LongTensor([zero_pad(pair.masked_target_tokens, target_length) for pair in samples]))
-    full_target_variable = Variable(torch.LongTensor([zero_pad(pair.full_target_tokens, target_length) for pair in samples]))
-    decoder_input = Variable(torch.LongTensor([[SOS_token] for i in range(len(samples))]))
-    control_zero = Variable(torch.FloatTensor([[0] for i in range(len(samples))]))
+    input_variable = Variable(torch.LongTensor([zero_pad(pair.masked_source_tokens, input_length) for pair in samples]),
+                              volatile=volatile)
+    full_input_variable = Variable(torch.LongTensor([zero_pad(pair.full_source_tokens, input_length) for pair in samples]),
+                                   volatile=volatile)
+    target_variable = Variable(torch.LongTensor([zero_pad(pair.masked_target_tokens, target_length) for pair in samples]),
+                               volatile=volatile)
+
+    full_target_variable = Variable(torch.LongTensor([zero_pad(pair.full_target_tokens, target_length) for pair in samples]),
+                                    volatile=volatile)
+    decoder_input = Variable(torch.LongTensor([[SOS_token] for i in range(len(samples))]), volatile=volatile)
+    control_zero = Variable(torch.FloatTensor([[0] for i in range(len(samples))]), volatile=volatile)
 
     if use_cuda:
         return input_variable.cuda(), full_input_variable.cuda(), target_variable.cuda(), \

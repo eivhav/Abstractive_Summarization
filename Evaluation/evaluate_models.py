@@ -3,7 +3,7 @@ from __future__ import unicode_literals, print_function, division
 
 import sys
 import os
-os.environ["CUDA_VISIBLE_DEVICES"]="1"
+os.environ["CUDA_VISIBLE_DEVICES"]="0"
 
 samuel = '/srv/'
 x99 = '/home/'
@@ -70,11 +70,13 @@ models = {
 
 
 data_loader = DataLoader(data_path, 75, None, s_damp=0.2)
-b_size = 2
-n_batches = 10
+b_size = 4
+n_batches = 1
 
 # 'TemporalAttn' or CoverageAttn
 
+from Training.RL_rewards import TrigramNovelty
+novelty_reward = TrigramNovelty()
 
 results = dict()
 for file_name in models.keys():
@@ -94,6 +96,9 @@ for file_name in models.keys():
     results[file_name]['print_scores'] = "\t".join([str(round(scores[k], 3)) for k in keys])
 
     preds_beam = pointer_gen_model.predict_v2(test_batches[0], 100, 5, use_cuda)
+    refs = [pair.get_text(pair.full_target_tokens, pointer_gen_model.vocab).split(" EOS")[0] for pair in test_batches[0]]
+    reward_values = novelty_reward.compute_rewards(test_batches[0], [p[0][0].split(" ") for p in preds_beam], pointer_gen_model)
+    print(reward_values)
     for i in range(b_size):
         results[file_name][i] = preds_beam[i][0][0]
 

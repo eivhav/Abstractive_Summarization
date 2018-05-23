@@ -185,7 +185,7 @@ class PGModel():
         nb_unks = max([len(s.unknown_tokens) for s in samples])
         input_variable, full_input_variable, target_variable, full_target_variable, decoder_input, control_zero = \
             utils.get_batch_variables(samples, self.config['input_length'], target_length, use_cuda,
-                                      self.vocab.word2index['SOS'])
+                                      self.vocab.word2index['SOS'], volatile=True)
 
         encoder_hidden = self.encoder.init_hidden(len(samples), use_cuda)
         encoder_outputs, encoder_hidden = self.encoder(input_variable, encoder_hidden)
