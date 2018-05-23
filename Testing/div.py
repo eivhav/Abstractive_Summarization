@@ -130,3 +130,47 @@ scores
 
 
 compute_perl_scores(None, refs[0], hyps[0])
+
+
+
+def compute_n_gram_novelty(sample, n_gram_n):
+    source, targets = sample['source'], sample['target']
+
+    def compute_n_grams(text, n):
+        return ["~".join([str(text[i + k]) for k in range(n)]) for i in range(len(text) - n + 1)]
+
+    text_n_grams = {k: True for k in compute_n_grams(source, n_gram_n)}
+    total_noevlty = 0
+    total_ngrams = 0
+    if len(targets) == 1 and len(targets[0]) < 5: return 1
+    for target in targets:
+        summary_n_grams = compute_n_grams(target, n_gram_n)
+        total_ngrams += len(summary_n_grams)
+        total_noevlty += len([1 for g in summary_n_grams if g not in text_n_grams])
+
+    if total_ngrams == 0: print(targets)
+    return total_noevlty / total_ngrams
+
+def compute_whole_sentences(sample):
+    source, targets = sample['source'], sample['target']
+
+    def compute_n_grams(text, n):
+        return ["~".join([str(text[i + k]) for k in range(n)]) for i in range(len(text) - n + 1)]
+
+    s = "~".join(source)
+    total_noevlty = 0
+    for target in targets:
+        sentence = "~".join(target)
+        if sentence not in s: total_noevlty += 1
+
+    return total_noevlty / len(targets)
+
+
+
+
+
+
+
+
+
+
