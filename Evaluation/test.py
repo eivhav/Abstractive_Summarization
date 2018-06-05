@@ -5,20 +5,20 @@ import os
 from Models.model import *
 from Training.MLE_trainers import *
 from Data.data_loader import *
-os.environ["CUDA_VISIBLE_DEVICES"]="1"
+os.environ["CUDA_VISIBLE_DEVICES"]="0"
 
 samuel = '/srv/'
 x99 = '/home/'
 current = x99
 
 sys.path.append(current + 'havikbot/MasterThesis/Code/Abstractive_Summarization/')
-use_cuda = torch.cuda.is_available()
+use_cuda = False #torch.cuda.is_available()
 
 data_path = '/home/havikbot/MasterThesis/Data/Model_data/CNN_DM/'
 data_loader = DataLoader(data_path)
 
-file_path='/home/havikbot/MasterThesis/Model compare/11_may_tempBIl/'
-#file_name='checkpoint_DM_CNN_50k_Coverage_MLE_tf=85_lr=e3_max75_ep@84000_loss@0.pickle'
+file_path='/home/havikbot/MasterThesis/best_models/Novelty-loss/'
+file_name= 'checkpoint_DM_CNN_50k_Coverage_tf=85_lr=adagrad1e4_max75_att_loss_002_ep@32500_loss@0.pickle'
 model_path = 'havikbot/MasterThesis/Models/'
 
 config = {'model_type': 'Combo',
@@ -33,14 +33,15 @@ scores = []
 for file_name in sorted(list(glob.iglob(file_path+"*.pickle"))):
 
     pointer_gen_model = PGModel(config=config, vocab=data_loader.vocab, use_cuda=use_cuda,
-                                model_file=file_name)
+                                model_file=file_path+file_name)
     trainer = Trainer(model=pointer_gen_model, tag="")
 
-    test_batches = data_loader.load_data('test', batch_size=10)
+    test_batches = data_loader.load_data('test', batch_size=30)
     scores.append(trainer.score_model(test_batches[0:100], use_cuda, beam=5, verbose=True))
 
 
 
+m_file = current+ "havikbot/MasterThesis/best_models/Coverage_base/checkpoint_DM_CNN_50k_TempBil_MLE_tf=85_lr=e3_max75_ep@79000_loss@0.pickle"
 
 
 
@@ -53,10 +54,11 @@ print(scores)
 
 
 beams = pointer_gen_model.predict_v2(test_batches[0], 60, 5, True)
-pred_seq = beams[1][0][0].split(" ")[10:25]
+pred_seq = beams[1][0][0].split(" ")[40:80]
 p_gens = beams[1][0][-2]
-source = " ".join(test_batches[0][1].source[0:15])
-att = beams[1][0][-1].data[0].cpu().narrow(0, 10, 15).narrow(1,0,15)
+source = " ".join(test_batches[0][1].source[50:100])
+att = beams[1][0][-1].data[0].cpu()
+att = beams[1][0][-1].data[0].cpu().narrow(0, 40, 40).narrow(1,50,50)
 
 import Testing.attention_viz as viz
 viz.showAttention(source, pred_seq, att)

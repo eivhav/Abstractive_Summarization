@@ -14,7 +14,6 @@ from pythonrouge.pythonrouge import Pythonrouge
 class Trainer():
     def __init__(self, model, tag):
         self.model = model
-        self.max_pool = nn.MaxPool2d((3, 1), stride=(1, 1))
         if len(tag) > 2:
             self.writer = SummaryWriter(comment=tag)
         self.sample_predictions = dict()
@@ -108,7 +107,7 @@ class Trainer():
         results = []
 
         for b in range(len(val_batches)):
-            preds = self.model.predict_v2(val_batches[b], 100, beam, use_cuda)
+            preds = self.model.predict_v2(val_batches[b], 120, beam, use_cuda)
             for p in range(len(val_batches[b])):
                 pair = val_batches[b][p]
                 ref = pair.get_text(pair.full_target_tokens, self.model.vocab).replace(" EOS", "")
@@ -123,10 +122,15 @@ class Trainer():
                     results[-1]['novelty'] = pair.compute_novelty(
                         pair.get_tokens(results[-1]['seq'].split(" "), self.model.vocab))
 
+                results[-1]['novelty_v2'] = pair.compute_novelty_v2(
+                    [pair.get_tokens(text.split(" ")+["."], self.model.vocab)
+                     for text in results[-1]['seq'].split(" . ")], self.model.vocab)
+
+
             if b % 10 == 0 and verbose: print(b, ": ", len(val_batches))
 
         rouge_calc = RougeCalculator(stopwords=False, lang="en")
-        scores = {"Rouge_1": 0, "Rouge_2": 0, "Rouge_L": 0, "Tri_novelty": 0, "p_gens": 0}
+        scores = {"Rouge_1": 0, "Rouge_2": 0, "Rouge_L": 0, "Tri_novelty": 0, "p_gens": 0, "Tri_novelty_v2": 0}
 
         if verbose: print("Computing SumEval scores")
         summaries, references = [], []
@@ -137,6 +141,7 @@ class Trainer():
             scores["Rouge_2"] += (rouge_calc.rouge_2(result['seq'], result['ref']) *100)
             scores["Rouge_L"] += (rouge_calc.rouge_l(result['seq'], result['ref']) *100)
             scores["Tri_novelty"] += result['novelty']
+            scores["Tri_novelty_v2"] += result['novelty_v2']
             if 'p_gen' in result: scores["p_gens"] += result['p_gen']
 
         for k in scores: scores[k] = scores[k] / len(results)

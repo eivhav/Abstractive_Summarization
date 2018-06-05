@@ -10,6 +10,7 @@ class DataLoader:
         with open(self.path + "vocab.pickle" , 'rb') as f: self.vocab = pickle.load(f)
         self.limit = limit
         self.filtered = filtered
+        self.s_damp = s_damp
 
         new_buckets = []
         for bucket in self.manifest['training']['buckets'][self.limit]:
@@ -19,7 +20,7 @@ class DataLoader:
                     nov_degree = self.manifest['training']['samples'][key]['novelty_degrees']
                     if sum(nov_degree) / len(nov_degree) >= filtered:
                             new_bucket[0].append(key)
-                            new_bucket[1].append(1 / math.sqrt(101 - 100*(sum(nov_degree) / len(nov_degree))))
+                            new_bucket[1].append(1 / ((101 - 100*(sum(nov_degree) / len(nov_degree)))**self.s_damp))
                 else:
                     new_bucket[0].append(key)
                     new_bucket[1].append(1)

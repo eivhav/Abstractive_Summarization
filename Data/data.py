@@ -97,4 +97,18 @@ class TextPair:
         return sum([1 for tri in tri_grams if tri not in self.source_tri_grams]) / len(tri_grams)
 
 
+    def compute_novelty_v2(self, sentences, vocab):
+        all_tri_grams = [[str(tokens[i]) + "~" + str(tokens[i+1]) + "~" + str(tokens[i+2]) for i in range(len(tokens)-2)]
+                     for tokens in sentences if len(tokens) >= 3]
+
+        count_novel_tri_grams = sum([sum([1 for tri in tri_grams if tri not in self.source_tri_grams])
+                           for tri_grams in all_tri_grams])
+
+        if sum([len(s) for s in all_tri_grams]) == 0: return 0
+
+        return count_novel_tri_grams / sum([len(s) for s in all_tri_grams])
+
+
+
+
 

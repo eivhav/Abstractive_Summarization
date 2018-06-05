@@ -12,6 +12,10 @@ class MLE_Novelty_Trainer(Trainer):
         super().__init__(model, tag)
 
         self.novelty_lambda = novelty_lambda
+        self.novelty_loss_type = 'combo'
+        self.novelty_n_grams = 3
+        self.max_pool = nn.MaxPool2d((self.novelty_n_grams, 1), stride=(1, 1))
+        self.max_pool_1d = nn.MaxPool1d(self.novelty_n_grams, stride=1)
 
 
     def train_batch(self, samples, use_cuda, tf_ratio=0.5, backprop=True):
@@ -64,25 +68,41 @@ class MLE_Novelty_Trainer(Trainer):
                         last_tri = str(last_tokens[0]) + "~" + str(last_tokens[1]) + "~" + str(max_tokens.data[i])
                         if last_tri not in samples[i].source_tri_grams: novelty_tokens[i] += 1
 
-
         return_values = dict()
         if self.novelty_lambda > 0:
-            scaled_att = (1 - p_gens) * previous_att
+            if self.novelty_loss_type == 'p_gen':
+                p_copy = (1 - p_gens).squeeze(-1)
+                tri_grams = [p_copy.narrow(1, i, self.novelty_n_grams).unsqueeze(1)
+                             for i in range(0, target_length-self.novelty_n_grams+1)]
+                novelty_p_copy = torch.cat(tri_grams, 1)
+                min_values = self.max_pool_1d(-novelty_p_copy).squeeze(-1)
+                novelty_loss = torch.abs(min_values.sum(-1).sum(-1))
+                return_values['loss_novelty'] = novelty_loss.data[0] / target_length
+                loss = mle_loss + (self.novelty_lambda * novelty_loss)
 
-            _size = scaled_att.size()[2] - 3
+            else:
+                if self.novelty_loss_type == 'combo':
+                    scaled_att = (1 - p_gens) * previous_att
+                else:
+                    scaled_att = previous_att
 
-            first_tri_gram = [scaled_att.narrow(1, i, 1).narrow(2, i, _size) for i in range(3)]
-            novelty_att = torch.cat((first_tri_gram[0], first_tri_gram[1], first_tri_gram[2]), 1).unsqueeze(1)
-            for t in range(1, target_length-2):
-                tri_gram = [scaled_att.narrow(1, t+i, 1).narrow(2, i, _size) for i in range(3)]
-                tri_sequence = torch.cat((tri_gram[0], tri_gram[1], tri_gram[2]), 1).unsqueeze(1)
-                novelty_att = torch.cat((novelty_att, tri_sequence), 1)
+                _size = scaled_att.size()[2] - self.novelty_n_grams
+                first_tri_gram = [scaled_att.narrow(1, i, 1).narrow(2, i, _size) for i in range(self.novelty_n_grams)]
+                novelty_att = torch.cat(first_tri_gram, 1).unsqueeze(1)
+                for t in range(1, target_length-self.novelty_n_grams+1):
+                    tri_gram = [scaled_att.narrow(1, t+i, 1).narrow(2, i, _size) for i in range(self.novelty_n_grams)]
+                    tri_sequence = torch.cat(tri_gram, 1).unsqueeze(1)
+                    novelty_att = torch.cat((novelty_att, tri_sequence), 1)
 
-            min_values = self.max_pool(-novelty_att).squeeze(2)
-            novelty_loss = torch.abs(min_values.sum(-1).sum(-1).sum(-1))
-            return_values['loss_novelty'] = novelty_loss.data[0] / target_length
+                #return_values['novelty_att'] = novelty_att
+                min_values = self.max_pool(-novelty_att).squeeze(2)
+                #return_values['novelty_att'] = min_values
+                #return_values['n_loss_vec'] = torch.abs(min_values.sum(-1).squeeze(0))
+                novelty_loss = torch.abs(min_values.sum(-1).sum(-1).sum(-1))
 
-            loss = mle_loss + (self.novelty_lambda * novelty_loss)
+                return_values['loss_novelty'] = novelty_loss.data[0] / target_length
+
+                loss = mle_loss + (self.novelty_lambda * novelty_loss)
 
         else:
             loss = mle_loss

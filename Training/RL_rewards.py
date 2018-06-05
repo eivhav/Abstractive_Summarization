@@ -1,10 +1,22 @@
 from pythonrouge.pythonrouge import Pythonrouge
 
 from sumeval.metrics.rouge import RougeCalculator
+from sumeval.metrics.bleu import BLEUCalculator
 import time
 from multiprocessing import Process, Queue
+import random
 #from threading import Thread
 #from queue import Queue
+
+
+class AlternateRewards():
+    def __init__(self, rewards):
+        self.rewards = rewards
+
+    def compute_reward(self, samples, sequence, model):
+        reward_module = random.choice(self.rewards)
+        return reward_module.compute_reward(samples, sequence, model)
+
 
 
 class RougeWorkers():
@@ -102,6 +114,20 @@ class TrigramNovelty:
             if ref_novelty ==0: scores.append(0)
             else: scores.append(novelty_count / ref_novelty)
 
+        return scores
+
+
+
+class SacreBleu():
+    def __init__(self):
+        self.bleu_calc = BLEUCalculator()
+
+    def compute_reward(self, samples, sequence, model):
+        references = [pair.get_text(pair.full_target_tokens, model.vocab).split(" EOS")[0] for pair in samples]
+        summaries = [" ".join([str(token) for token in s]).split(" EOS")[0] for s in sequence]
+        scores = []
+        for i in range(len(references)):
+            scores.append(self.bleu_calc.bleu(summaries[i], references[i]) / 100)
         return scores
 
 

@@ -38,6 +38,7 @@ def load_summaries(file_path):
 
 sumaries = load_summaries('/home/havikbot/MasterThesis/Data/Abi See- PointerGen test output/pointer-gen-cov/*.txt')
 refrences  = load_summaries('/home/havikbot/MasterThesis/Data/Abi See- PointerGen test output/reference/*.txt')
+articles = load_summaries('/home/havikbot/MasterThesis/Data/Abi See- PointerGen test output/articles/*.txt')
 
 sums= []
 refs = []
