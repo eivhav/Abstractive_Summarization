@@ -80,13 +80,22 @@ class RougePerlVersion():
 
 
 class TrigramNovelty:
-    def __init__(self, remove_stopwords=False, stem=False):
+    def __init__(self, remove_stopwords=False, stem=False, method='tri_gram'):
         self.rouge_calc = RougeCalculator(stopwords=remove_stopwords, lang="en", stemming=stem)
+
+        if method =='tri_gram': self.compute_n_grams = self.compute_tri_grams
+        elif method == 'bi_gram': self.compute_n_grams = self.compute_bi_grams
+        else: print("Invalid n-gram specifier", method)
+
 
     def compute_tri_grams(self, tokens):
         #print(tokens)
         return {str(tokens[i]) + "~" + str(tokens[i + 1]) + "~" + str(tokens[i + 2]): True for i in
                          range(len(tokens) - 2)}
+
+    def compute_bi_grams(self, tokens):
+        return {str(tokens[i]) + "~" + str(tokens[i + 1]): True for i in range(len(tokens) - 1)}
+
 
     def compute_reward(self, samples, sequence, model):
 
@@ -96,13 +105,13 @@ class TrigramNovelty:
 
         scores = []
         for i in range(len(references)):
-            hyps_tri_grams = [self.compute_tri_grams(self.rouge_calc.tokenize(h, False))
+            hyps_tri_grams = [self.compute_n_grams(self.rouge_calc.tokenize(h, False))
                               for h in summaries[i].split(" . ") if len(h) > 3]
-            refs_tri_grams = [self.compute_tri_grams(self.rouge_calc.tokenize(r, False))
+            refs_tri_grams = [self.compute_n_grams(self.rouge_calc.tokenize(r, False))
                               for r in references[i].split(" . ") if len(r) > 3]
             refs_tri_grams = {gram: True for l in refs_tri_grams for gram in l.keys()}
 
-            source_tri_grams = [self.compute_tri_grams(self.rouge_calc.tokenize(s, False))
+            source_tri_grams = [self.compute_n_grams(self.rouge_calc.tokenize(s, False))
                                 for s in sources[i].split(" . ") if len(s) > 3]
             source_tri_grams = {gram: True for l in source_tri_grams for gram in l.keys()}
 
