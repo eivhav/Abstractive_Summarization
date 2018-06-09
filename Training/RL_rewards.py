@@ -9,7 +9,7 @@ import random
 #from queue import Queue
 
 
-class AlternateRewards():
+class AlternateRewards:
     def __init__(self, rewards):
         self.rewards = rewards
 
@@ -17,6 +17,16 @@ class AlternateRewards():
         reward_module = random.choice(self.rewards)
         return reward_module.compute_reward(samples, sequence, model)
 
+
+class ComboRewards:
+    def __init__(self, rewards, weights):
+        self.rewards = rewards
+        self.weights = weights
+
+    def compute_reward(self, samples, sequence, model):
+        reward_lists = [r.compute_reward(samples, sequence, model) for r in self.rewards]
+        weighted_rewards = [[r*self.weights[i] for r in reward_lists[i]] for i in range(len(reward_lists))]
+        return [sum([reward[s] for reward in weighted_rewards]) for s in range(len(samples))]
 
 
 class RougeWorkers():
