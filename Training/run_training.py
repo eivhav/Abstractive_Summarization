@@ -21,12 +21,12 @@ from Data.data_loader import *
 
 use_cuda = torch.cuda.is_available()
 
-data_path = '/home/havikbot/MasterThesis/Data/Model_data/CNN_DM/'
+data_path = 'havikbot/MasterThesis/Data/Model_data/CNN_DM/'
 best_model_path = 'havikbot/MasterThesis/best_models/Coverage_base/'
 model_path = 'havikbot/MasterThesis/Models/'
 
 
-data_loader = DataLoader(data_path, 75, None, s_damp=0.2)
+data_loader = DataLoader(current + data_path, 75, None, s_damp=0.2)
 
 # 'TemporalAttn' or CoverageAttn
 
