@@ -17,6 +17,7 @@ class Scorer():
         self.sample_predictions = dict()
         self.test_samples = None
         self.beam_batch_size = 6
+        self.rewards_to_score = {}
 
 
 
@@ -47,6 +48,10 @@ class Scorer():
                 results[-1]['ref_novelty'] = sum([sum(vec) / len(vec) for vec in pair.tri_gram_novelty_vector]) / \
                                                 len(pair.tri_gram_novelty_vector)
 
+                for r in self.rewards_to_score:
+                    results[-1][r] = self.rewards_to_score[r].compute_reward([pair], [results[-1]['seq'].split(" ")],
+                                                                             self.model)[0]
+
             if b % 10 == 0 and verbose: print(b, ": ", len(val_batches))
 
         rouge_calc = RougeCalculator(stopwords=False, lang="en")
@@ -55,6 +60,8 @@ class Scorer():
         for rouge in ['ROUGE-1-F', 'ROUGE-2-F', 'ROUGE-3-F', 'ROUGE-L-F']:
             scores['rouge_dist'][rouge] = []
             for k in range(21): scores['rouge_dist'][rouge].append([])
+
+        for r in self.rewards_to_score: scores[r] = 0
 
         if verbose: print("Computing SumEval scores")
         summaries, references = [], []
@@ -68,6 +75,7 @@ class Scorer():
             scores["Tri_novelty"] += result['novelty']
             scores["Tri_novelty_v2"] += result['novelty_v2']
             if 'p_gen' in result: scores["p_gens"] += result['p_gen']
+            for r in self.rewards_to_score: scores[r] += result[r]
 
             perl_scores = self.score_rouge_org([result['seq']], [result['ref']])
             for rouge in scores['rouge_dist']:

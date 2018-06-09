@@ -1,9 +1,9 @@
 
 import tensorflow as tf
 
-event_path = "/home/havikbot/MasterThesis/runs/DataSampling/May19_21-34-49_x99DM_CNN_50k_Coverage_DecoderAttn_MLE_tf=85_lr=1e3_max75_NoveltySample95d005"
+event_path = "/home/havikbot/MasterThesis/runs/DataSampling/May25_12-50-57_psvyti6phDM_CNN_50k_Coverage_Decodertf=85_lr=1e3_max75_sampling090_001_02"
 
-event_file = "events.out.tfevents.1526758489.x99"
+event_file = "events.out.tfevents.1527267057.psvyti6ph"
 
 log = dict()
 
@@ -25,7 +25,7 @@ for step in log.keys():
 keys = ['4-Beam/Rouge_l_perl', '4-Beam/Rouge_1_perl', '4-Beam/Rouge_2_perl', '4-Beam/Rouge_3_perl', '4-Beam/Tri_novelty',
         '4-Beam/p_gens']
 
-#print("\t".join([str(best_model[0])]+[str(round(log[best_model[0]][k], 3)) for k in Keys]))
+print("\t".join([str(best_model[0])]+[str(round(log[best_model[0]][k], 3)) for k in keys]))
 
 graph_values = dict()
 for k in keys: graph_values[k] = [-1]

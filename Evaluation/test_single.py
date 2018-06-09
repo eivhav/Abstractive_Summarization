@@ -3,7 +3,7 @@
 from __future__ import unicode_literals, print_function, division
 import sys
 import os
-os.environ["CUDA_VISIBLE_DEVICES"]="0"
+os.environ["CUDA_VISIBLE_DEVICES"]="1"
 from Models.model import *
 from Training.MLE_trainers import *
 from Data.data_loader import *
@@ -17,8 +17,8 @@ paperspace = 'home/paperspace/'
 current = x99
 sys.path.append(current + 'havikbot/MasterThesis/Code/Abstractive_Summarization/')
 
-path = '/home/havikbot/MasterThesis/best_models/RL/'
-file = 'checkpoint_DM_CNN_50k_Coverage_Decoder_tf=85_lr=1e4_max75_SC1_PERL_2L_pos_ep@20000_loss@0.pickle'
+path = '/home/havikbot/MasterThesis/Models/'
+file = 'checkpoint_DM_CNN_50k_Coverage_tf=85_lr=adam1e4_SC1_Bigram_novelty_neg_ep@23000_loss@0.pickle'
 data_path = '/home/havikbot/MasterThesis/Data/Model_data/CNN_DM/'
 
 config =         {'model_type': 'Combo',

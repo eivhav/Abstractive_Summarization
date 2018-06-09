@@ -97,32 +97,36 @@ class TrigramNovelty:
         return {str(tokens[i]) + "~" + str(tokens[i + 1]): True for i in range(len(tokens) - 1)}
 
 
-    def compute_reward(self, samples, sequence, model):
+    def compute_reward(self, samples, sequence, model, return_grams=False):
 
         sources = [pair.get_text(pair.full_source_tokens, model.vocab).split(" EOS")[0] for pair in samples]
         references = [pair.get_text(pair.full_target_tokens, model.vocab).split(" EOS")[0] for pair in samples]
         summaries = [" ".join([str(token) for token in s]).split(" EOS")[0] for s in sequence]
 
         scores = []
+        reward_grams = []
         for i in range(len(references)):
             hyps_tri_grams = [self.compute_n_grams(self.rouge_calc.tokenize(h, False))
-                              for h in summaries[i].split(" . ") if len(h) > 3]
+                              for h in summaries[i].split(" . ") if len(h.split(" ")) > 6]
+            hyps_tri_grams = {gram: True for l in hyps_tri_grams for gram in l.keys()}
+
             refs_tri_grams = [self.compute_n_grams(self.rouge_calc.tokenize(r, False))
-                              for r in references[i].split(" . ") if len(r) > 3]
+                              for r in references[i].split(" . ") if len(r.split(" ")) > 3]
             refs_tri_grams = {gram: True for l in refs_tri_grams for gram in l.keys()}
 
             source_tri_grams = [self.compute_n_grams(self.rouge_calc.tokenize(s, False))
-                                for s in sources[i].split(" . ") if len(s) > 3]
+                                for s in sources[i].split(" . ") if len(s.split(" ")) > 3]
             source_tri_grams = {gram: True for l in source_tri_grams for gram in l.keys()}
 
             novelty_count = 0
-            ref_novelty = sum([1 for gram in refs_tri_grams if gram not in source_tri_grams])
-            for hyp in hyps_tri_grams:
-                novelty_count += sum([1 for gram in hyp if gram in refs_tri_grams and gram not in source_tri_grams])
+            #ref_novelty = sum([1 for gram in refs_tri_grams if gram not in source_tri_grams])
+            novel_n_grams = [gram for gram in hyps_tri_grams if gram in refs_tri_grams and gram not in source_tri_grams]
+            reward_grams.append(novel_n_grams)
 
-            if ref_novelty ==0: scores.append(0)
-            else: scores.append(novelty_count / ref_novelty)
+            if len(refs_tri_grams) == 0: scores.append(0)
+            else: scores.append(len(novel_n_grams)/ len(refs_tri_grams))
 
+        if return_grams: return scores, reward_grams
         return scores
 
 

@@ -19,6 +19,7 @@ class Trainer():
         self.sample_predictions = dict()
         self.test_samples = None
         self.beam_batch_size = 6
+        self.rewards_to_score = {}
 
 
     def train(self, data_loader, nb_epochs, batch_size, optimizer, lr, tf_ratio, stop_criterion,
@@ -126,11 +127,16 @@ class Trainer():
                     [pair.get_tokens(text.split(" ")+["."], self.model.vocab)
                      for text in results[-1]['seq'].split(" . ")], self.model.vocab)
 
+                for r in self.rewards_to_score:
+                    results[-1][r] = self.rewards_to_score[r].compute_reward([pair], [results[-1]['seq'].split(" ")],
+                                                                        self.model)[0]
 
             if b % 10 == 0 and verbose: print(b, ": ", len(val_batches))
 
         rouge_calc = RougeCalculator(stopwords=False, lang="en")
         scores = {"Rouge_1": 0, "Rouge_2": 0, "Rouge_L": 0, "Tri_novelty": 0, "p_gens": 0, "Tri_novelty_v2": 0}
+        for r in self.rewards_to_score: scores[r] = 0
+
 
         if verbose: print("Computing SumEval scores")
         summaries, references = [], []
@@ -143,6 +149,8 @@ class Trainer():
             scores["Tri_novelty"] += result['novelty']
             scores["Tri_novelty_v2"] += result['novelty_v2']
             if 'p_gen' in result: scores["p_gens"] += result['p_gen']
+            for r in self.rewards_to_score: scores[r] += result[r]
+
 
         for k in scores: scores[k] = scores[k] / len(results)
 
