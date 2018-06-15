@@ -3,11 +3,12 @@
 from __future__ import unicode_literals, print_function, division
 import sys
 import os
-os.environ["CUDA_VISIBLE_DEVICES"]="1"
+os.environ["CUDA_VISIBLE_DEVICES"]="0"
 from Models.model import *
 from Training.MLE_trainers import *
 from Data.data_loader import *
 from Evaluation.scorer import *
+from Training.RL_rewards import *
 use_cuda = torch.cuda.is_available()
 
 
@@ -17,8 +18,8 @@ paperspace = 'home/paperspace/'
 current = x99
 sys.path.append(current + 'havikbot/MasterThesis/Code/Abstractive_Summarization/')
 
-path = '/home/havikbot/MasterThesis/Models/'
-file = 'checkpoint_DM_CNN_50k_Coverage_tf=85_lr=adam1e4_SC1_Bigram_novelty_neg_ep@23000_loss@0.pickle'
+path = '/home/havikbot/MasterThesis/best_models/RL/Sampling/'
+file = 'checkpoint_DM_CNN_50k_Coverage_Decoder_tf=1_lr=5e5_max60_SC0999_Perl_l_pos_sampling=095_02_dec=01_ep@37000_loss@0.pickle'
 data_path = '/home/havikbot/MasterThesis/Data/Model_data/CNN_DM/'
 
 config =         {'model_type': 'Combo',
@@ -33,9 +34,31 @@ pointer_gen_model = PGModel(config=config, vocab=data_loader.vocab, use_cuda=use
                             model_file=path+file)
 
 scorer = Scorer(model=pointer_gen_model)
-test_batches = data_loader.load_data('test', batch_size=15)
-scores = scorer.score_model(test_batches[0:100], use_cuda, beam=5, verbose=True)
+
+scorer.rewards_to_score = {
+        "bi_gram_reward": TrigramNovelty(remove_stopwords=False, stem=False, method='bi_gram'),
+        "tri_gram_reward": TrigramNovelty(remove_stopwords=False, stem=False, method='tri_gram')
+    }
+
+test_batches = data_loader.load_data('test', batch_size=25)
+scores = scorer.score_model(test_batches[0:150], use_cuda, beam=5, verbose=True, rouge_dist=False)
 
 keys = ['Rouge_l_perl', 'Rouge_1_perl', 'Rouge_2_perl', 'Rouge_3_perl', 'Tri_novelty', 'p_gens']
 print("\t".join([str(round(scores[k], 3)) for k in keys]))
+
+
+
+
+trainer = MLE_Novelty_Trainer(pointer_gen_model, "", novelty_lambda=-1)
+trainer.model.encoder_optimizer = torch.optim.Adagrad(pointer_gen_model.encoder.parameters(), lr=1)
+trainer.model.decoder_optimizer = torch.optim.Adagrad(pointer_gen_model.decoder.parameters(), lr=1)
+trainer.model.criterion = nn.NLLLoss()
+loss_values = dict()
+for batch in data_loader.load_data('val', batch_size=10)[:50]:
+    _time, losses = trainer.train_batch(batch, use_cuda, backprop=False)
+    if len(loss_values) == 0:
+        for k in losses: loss_values[k] = 0
+    for k in losses: loss_values[k] += losses[k]
+
+
 

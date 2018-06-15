@@ -21,7 +21,7 @@ class Scorer():
 
 
 
-    def score_model(self, val_batches, use_cuda, beam, verbose=False):
+    def score_model(self, val_batches, use_cuda, beam, verbose=False, rouge_dist=True):
 
         results = []
 
@@ -77,9 +77,10 @@ class Scorer():
             if 'p_gen' in result: scores["p_gens"] += result['p_gen']
             for r in self.rewards_to_score: scores[r] += result[r]
 
-            perl_scores = self.score_rouge_org([result['seq']], [result['ref']])
-            for rouge in scores['rouge_dist']:
-                scores['rouge_dist'][rouge][int(20*result['ref_novelty'])].append(perl_scores[rouge])
+            if rouge_dist:
+                perl_scores = self.score_rouge_org([result['seq']], [result['ref']])
+                for rouge in scores['rouge_dist']:
+                    scores['rouge_dist'][rouge][int(20*result['ref_novelty'])].append(perl_scores[rouge])
 
         for k in scores:
             if k is 'rouge_dist':

@@ -1,5 +1,6 @@
 
 import tensorflow as tf
+import json
 
 event_path = "/home/havikbot/MasterThesis/runs/DataSampling/May25_12-50-57_psvyti6phDM_CNN_50k_Coverage_Decodertf=85_lr=1e3_max75_sampling090_001_02"
 
@@ -53,4 +54,84 @@ def produce_cordinates(path, file, interval=5000, metric='4-Beam/Rouge_l_perl'):
 
 
     print("".join(["("+str(v[0]/1000)+","+str(round(v[1], 2))+")" for v in graph_values[metric]]))
+
+
+def produce_rouge_dist(models, baseline):
+
+    results = {}
+    baseline_values = {}
+    for r_type in baseline['scores']['rouge_dist'].keys():
+        results[r_type] = []
+        baseline_values[r_type] = [v[0] for v in baseline['scores']['rouge_dist'][r_type]]
+        for i in range(21): results[r_type].append([])
+
+    for k in models.keys():
+        m = models[k]
+        print(k)
+        for r_type in m['scores']['rouge_dist'].keys():
+            for i in range(3, len(results[r_type]), 2):
+                v1 = m['scores']['rouge_dist'][r_type][i][0] - baseline['scores']['rouge_dist'][r_type][i][0]
+                v2 = m['scores']['rouge_dist'][r_type][i+1][0] - baseline['scores']['rouge_dist'][r_type][i+1][0]
+                results[r_type][i].append((v1+v2) / 2)
+
+    for r in results:
+        print(r)
+        for i in range(3, 21, 2):
+            print(str(i/20)+", " + ", ".join([str(round(100*v, 2)) for v in results[r][i]]))
+
+
+import json
+file = '/home/havikbot/MasterThesis/best_models/Novelty-loss/results_combined.json'
+baseline_file = '/home/havikbot/MasterThesis/best_models/Novelty-loss/results_baseline.json'
+models_data = json.loads(open(file).read())
+
+
+keys = [
+'checkpoint_DM_CNN_50k_Coverage_tf=85_lr=adagrad5e4_max75_att_loss_002_ep@12000_loss@0.pickle',
+'checkpoint_DM_CNN_50k_Coverage_tf=85_lr=adagrad5e4_max75_pgen_loss_002_ep@48500_loss@0.pickle',
+'checkpoint_DM_CNN_50k_Coverage_tf=85_lr=adagrad5e4_max75_combo_loss_002_ep@15500_loss@0.pickle',
+'checkpoint_DM_CNN_50k_Coverage_tf=85_lr=adagrad5e4_max75_att_loss_005_ep@16500_loss@0.pickle',
+'checkpoint_DM_CNN_50k_Coverage_tf=85_lr=adagrad5e4_max75_pgen_loss_005_ep@39500_loss@0.pickle',
+'checkpoint_DM_CNN_50k_Coverage_tf=85_lr=adagrad5e4_max75_combo_loss_005_ep@46500_loss@0.pickle'
+]
+models_data = {k: models_data[k] for k in keys}
+
+baseline_data = json.loads(open(baseline_file).read())
+baseline = baseline_data[list(baseline_data.keys())[0]]
+produce_rouge_dist(models_data, baseline)
+
+
+def produce_graph_table_from_tensorboard(runs, intervall=3000, _range=120000, tag='4-Beam/Rouge_l_perl'):
+
+    logs = []
+    for run in runs:
+        log = dict()
+        maxium = 0
+        for e in tf.train.summary_iterator(run):
+            if e.step % 1000 == 0:
+                if e.step not in log: log[e.step] = dict()
+                if e.step > maxium: maxium = e.step
+                for v in e.summary.value:
+                    log[e.step][v.tag] = v.simple_value
+
+        for i in range(maxium, _range, 1000):
+            log[i] = {t: -1 for t in log[maxium]}
+
+        logs.append(log)
+
+    print("iter, "+", ".join(r.split("max75_")[1].split("/events")[0] for r in runs))
+    for i in range(0, _range-2000, intervall):
+        print(str(i/1000) + ", " + ", ".join([str(round(max(log[i][tag], log[i+1000][tag], log[i+1000][tag]) , 3)) for log in logs]))
+
+
+path = '/home/havikbot/MasterThesis/runs/Novelty_loss/best/'
+runs = {
+    path + 'Jun06_23-35-20_x99DM_CNN_50k_Coverage_tf=85_lr=adagrad5e4_max75_pgen_loss_002/events.out.tfevents.1528320920.x99',
+    path + 'Jun06_23-28-04_x99DM_CNN_50k_Coverage_tf=85_lr=adagrad5e4_max75_pgen_loss_005/events.out.tfevents.1528320484.x99'
+}
+produce_graph_table_from_tensorboard(runs)
+
+
+
+
 

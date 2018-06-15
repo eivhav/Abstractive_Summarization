@@ -2,7 +2,7 @@ from __future__ import unicode_literals, print_function, division
 
 import sys
 import os
-os.environ["CUDA_VISIBLE_DEVICES"]="0"
+os.environ["CUDA_VISIBLE_DEVICES"]="1"
 
 samuel = '/srv/'
 x99 = '/home/'
@@ -30,8 +30,8 @@ data_loader = DataLoader(current + data_path, 75, None, s_damp=0.2)
 
 # 'TemporalAttn' or CoverageAttn
 
-#model_id = 'DM_CNN_50k_Coverage_tf=85_lr=adagrad5e4_max75_combo_loss_005'
-model_id = 'DM_CNN_50k_Coverage_tf=85_lr=adam1e5b10_SC0995_1xBigram1xPerl-L_neg'
+model_id = 'DM_CNN_50k_Coverage_tf=85_lr=adagrad5e4_max75_att_loss_002'
+#model_id = 'DM_CNN_50k_Coverage_tf=85_lr=adam1e5b8_SC0995_1xBigram1xPerl-L_neg'
 
 config = {'model_type': 'Combo',
           'embedding_size': 128, 'hidden_size': 256,
@@ -49,25 +49,26 @@ pointer_gen_model.load_model(file_path='/home/havikbot/MasterThesis/Models/',
             file_name='checkpoint_DM_CNN_50k_cont_Coverage_DecoderAttn_SC=1_PerlL2_pos_rws_ep@17400_loss@0.pickle')
 
 '''
-reward_module1 = RougePerlVersion(rouge_variants=["ROUGE-L-F"], nb_workers=8)
+#reward_module1 = RougePerlVersion(rouge_variants=["ROUGE-L-F"], nb_workers=8)
 #reward_module1 = RougeSumeval(rouge_variants=["ROUGE-L-F"], remove_stopwords=True, stem=False)
-reward_module2 = TrigramNovelty(remove_stopwords=False, stem=False, method='bi_gram')
+#reward_module2 = TrigramNovelty(remove_stopwords=False, stem=False, method='bi_gram')
 #reward_module = SacreBleu()
 #reward_module = AlternateRewards([SacreBleu()])
                                  #RougeSumeval(rouge_variants=["ROUGE-2-F", "ROUGE-L-F"], remove_stopwords=False, stem=True)]
 
-reward_module = ComboRewards([reward_module1, reward_module2], [1, 1])
+#reward_module = ComboRewards([reward_module1, reward_module2], [1, 1])
 
 trainer = SelfCriticalTrainer(model=pointer_gen_model, tag=model_id, rl_lambda=0.995, reward_module=reward_module, reward_min=-1)
+#trainer.rewards_to_score = {"Reward_RougeL" :reward_module1, "Reward_n_gram" :reward_module2, }
 
-'''
-trainer = MLE_Novelty_Trainer(pointer_gen_model, model_id, novelty_lambda=0.05)
-trainer.novelty_loss_type = 'combo'
+
+trainer = MLE_Novelty_Trainer(pointer_gen_model, model_id, novelty_lambda=0.02)
+trainer.novelty_loss_type = 'att'
 trainer.beam_batch_size = 15
-'''
 
-trainer.train(data_loader=data_loader, nb_epochs=25, batch_size=10,
-                        optimizer=torch.optim.Adam, lr=0.00001,
+
+trainer.train(data_loader=data_loader, nb_epochs=25, batch_size=25,
+                        optimizer=torch.optim.Adagrad, lr=0.0005,
                         tf_ratio=0.85, stop_criterion=None,
                         use_cuda=True, print_evry=500, start_iter=0, n_sampling_decay=None, new_optm=True
                         )

@@ -3,7 +3,7 @@ from __future__ import unicode_literals, print_function, division
 
 import sys
 import os
-os.environ["CUDA_VISIBLE_DEVICES"]="1"
+os.environ["CUDA_VISIBLE_DEVICES"]="0"
 
 samuel = '/srv/'
 x99 = '/home/'
@@ -21,21 +21,12 @@ from Evaluation.scorer import *
 use_cuda = torch.cuda.is_available()
 
 data_path = 'havikbot/MasterThesis/Data/Model_data/CNN_DM/'
-model_path = 'havikbot/MasterThesis/best_models/Sampling/'
+model_path = 'havikbot/MasterThesis/best_models/Novelty-loss/'
 
 
 models = {
 
-    'checkpoint_DM_CNN_50k_TempBil_DecoderAttn_MLE_tf=65_lr=e3_max75_h=256_ep@76000_loss@0.pickle':
-        {'model_type': 'Combo',
-            'embedding_size': 128, 'hidden_size': 256,
-            'temporal_att': False, 'bilinear_attn': False,
-            'decoder_att': False, 'input_in_pgen': True,
-            'input_length': 400, 'target_length': 76,
-            'model_path': current+ model_path, 'model_id': "" }
-    ,
-
-    'checkpoint_DM_CNN_50k_Coverage_DecoderAttn_MLE_tf=85_lr=1e3_max75_NoveltySample95d005_ep@168000_loss@0.pickle':
+    'checkpoint_DM_CNN_50k_Coverage_tf=85_lr=adagrad5e4_max75_att_loss_002_ep@25500_loss@0.pickle':
         {'model_type': 'Combo',
             'embedding_size': 128, 'hidden_size': 256,
             'temporal_att': False, 'bilinear_attn': False,
@@ -43,24 +34,21 @@ models = {
             'input_length': 400, 'target_length': 76,
             'model_path': current+ model_path, 'model_id': "" } ,
 
-
-
-    'checkpoint_DM_CNN_50k_Coverage_Decodertf=85_lr=1e3_max75_sampling090_001_02_ep@103000_loss@0.pickle':
+    'checkpoint_DM_CNN_50k_Coverage_tf=85_lr=adagrad5e4_max75_att_loss_005_ep@52000_loss@0.pickle':
         {'model_type': 'Combo',
-            'embedding_size': 128, 'hidden_size': 256,
-            'temporal_att': False, 'bilinear_attn': False,
-            'decoder_att': True, 'input_in_pgen': True,
-            'input_length': 400, 'target_length': 76,
-            'model_path': current+ model_path, 'model_id': "" }
-    ,
+         'embedding_size': 128, 'hidden_size': 256,
+         'temporal_att': False, 'bilinear_attn': False,
+         'decoder_att': True, 'input_in_pgen': True,
+         'input_length': 400, 'target_length': 76,
+         'model_path': current + model_path, 'model_id': ""}
 
 
 }
 
 
 data_loader = DataLoader(current + data_path, 75, None, s_damp=0.2)
-b_size = 16
-n_batches = 1000
+b_size = 10
+n_batches = 1500
 
 # 'TemporalAttn' or CoverageAttn
 
@@ -99,8 +87,8 @@ for i in range(b_size):
     sample_preds.append({m: results[m][i] for m in results.keys()})
 
 
-with open(current +model_path + "results.json", "w") as handle: handle.write(json.dumps(results))
-with open(current +model_path + "sample_preds.json", "w") as handle: handle.write(json.dumps(sample_preds))
+with open(current +model_path + "resultsAttn.json", "w") as handle: handle.write(json.dumps(results))
+with open(current +model_path + "sample_predsAttn.json", "w") as handle: handle.write(json.dumps(sample_preds))
 
 
 

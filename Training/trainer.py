@@ -42,6 +42,7 @@ class Trainer():
         for iter in range(start_iter, int(nb_epochs*nb_training_samples/batch_size)):
 
             batch = data_loader.sample_training_batch(batch_size)
+
             _time, losses = self.train_batch(batch, use_cuda=self.model.use_cuda)
             for loss_type in losses:
                 self.writer.add_scalar('1-Training/'+loss_type, losses[loss_type], iter)
