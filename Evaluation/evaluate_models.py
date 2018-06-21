@@ -21,26 +21,19 @@ from Evaluation.scorer import *
 use_cuda = torch.cuda.is_available()
 
 data_path = 'havikbot/MasterThesis/Data/Model_data/CNN_DM/'
-model_path = 'havikbot/MasterThesis/best_models/Novelty-loss/'
+model_path = 'havikbot/MasterThesis/best_models/RL/Final/'
 
 
 models = {
 
-    'checkpoint_DM_CNN_50k_Coverage_tf=85_lr=adagrad5e4_max75_att_loss_002_ep@25500_loss@0.pickle':
+    'checkpoint_DM_CNN_50k_Coverage_tf=85_lr=adam5e5b25_SC0995_Perl-L_negv2_ep@29500_loss@0.pickle':
         {'model_type': 'Combo',
             'embedding_size': 128, 'hidden_size': 256,
             'temporal_att': False, 'bilinear_attn': False,
             'decoder_att': True, 'input_in_pgen': True,
             'input_length': 400, 'target_length': 76,
-            'model_path': current+ model_path, 'model_id': "" } ,
+            'model_path': current+ model_path, 'model_id': "" }
 
-    'checkpoint_DM_CNN_50k_Coverage_tf=85_lr=adagrad5e4_max75_att_loss_005_ep@52000_loss@0.pickle':
-        {'model_type': 'Combo',
-         'embedding_size': 128, 'hidden_size': 256,
-         'temporal_att': False, 'bilinear_attn': False,
-         'decoder_att': True, 'input_in_pgen': True,
-         'input_length': 400, 'target_length': 76,
-         'model_path': current + model_path, 'model_id': ""}
 
 
 }
@@ -69,7 +62,7 @@ for file_name in models.keys():
     }
     test_batches = data_loader.load_data('test', batch_size=b_size)
 
-    scores = scorer.score_model(test_batches[0:n_batches], use_cuda, beam=5, verbose=True)
+    scores = scorer.score_model(test_batches[0:n_batches], use_cuda, beam=5, verbose=True, rouge_dist=True)
     results[file_name]['scores'] = scores
     keys = ['Rouge_l_perl', 'Rouge_1_perl', 'Rouge_2_perl', 'Rouge_3_perl', 'Tri_novelty', 'p_gens']
     print(file_name)
@@ -87,8 +80,8 @@ for i in range(b_size):
     sample_preds.append({m: results[m][i] for m in results.keys()})
 
 
-with open(current +model_path + "resultsAttn.json", "w") as handle: handle.write(json.dumps(results))
-with open(current +model_path + "sample_predsAttn.json", "w") as handle: handle.write(json.dumps(sample_preds))
+with open(current +model_path + "resultsBase.json", "w") as handle: handle.write(json.dumps(results))
+with open(current +model_path + "sample_predsBase.json", "w") as handle: handle.write(json.dumps(sample_preds))
 
 
 

@@ -18,8 +18,8 @@ paperspace = 'home/paperspace/'
 current = x99
 sys.path.append(current + 'havikbot/MasterThesis/Code/Abstractive_Summarization/')
 
-path = '/home/havikbot/MasterThesis/best_models/RL/Sampling/'
-file = 'checkpoint_DM_CNN_50k_Coverage_Decoder_tf=1_lr=5e5_max60_SC0999_Perl_l_pos_sampling=095_02_dec=01_ep@37000_loss@0.pickle'
+path = '/home/havikbot/MasterThesis/best_models/RL/Final/'
+file = 'checkpoint_DM_CNN_50k_Coverage_tf=85_lr=adam5e5b25_SC0995_20xBigram1xPerl-L_neg_ep@19500_loss@0.pickle'
 data_path = '/home/havikbot/MasterThesis/Data/Model_data/CNN_DM/'
 
 config =         {'model_type': 'Combo',
@@ -41,7 +41,7 @@ scorer.rewards_to_score = {
     }
 
 test_batches = data_loader.load_data('test', batch_size=25)
-scores = scorer.score_model(test_batches[0:150], use_cuda, beam=5, verbose=True, rouge_dist=False)
+scores = scorer.score_model(test_batches[4:5], use_cuda, beam=5, verbose=True, rouge_dist=False)
 
 keys = ['Rouge_l_perl', 'Rouge_1_perl', 'Rouge_2_perl', 'Rouge_3_perl', 'Tri_novelty', 'p_gens']
 print("\t".join([str(round(scores[k], 3)) for k in keys]))

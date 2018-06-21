@@ -81,18 +81,16 @@ def produce_rouge_dist(models, baseline):
 
 
 import json
-file = '/home/havikbot/MasterThesis/best_models/Novelty-loss/results_combined.json'
-baseline_file = '/home/havikbot/MasterThesis/best_models/Novelty-loss/results_baseline.json'
+path = '/home/havikbot/MasterThesis/best_models/RL/Final/results/'
+file = path + "resultsRL.json"
+baseline_file = path + 'resultsBase.json'
 models_data = json.loads(open(file).read())
 
 
 keys = [
-'checkpoint_DM_CNN_50k_Coverage_tf=85_lr=adagrad5e4_max75_att_loss_002_ep@12000_loss@0.pickle',
-'checkpoint_DM_CNN_50k_Coverage_tf=85_lr=adagrad5e4_max75_pgen_loss_002_ep@48500_loss@0.pickle',
-'checkpoint_DM_CNN_50k_Coverage_tf=85_lr=adagrad5e4_max75_combo_loss_002_ep@15500_loss@0.pickle',
-'checkpoint_DM_CNN_50k_Coverage_tf=85_lr=adagrad5e4_max75_att_loss_005_ep@16500_loss@0.pickle',
-'checkpoint_DM_CNN_50k_Coverage_tf=85_lr=adagrad5e4_max75_pgen_loss_005_ep@39500_loss@0.pickle',
-'checkpoint_DM_CNN_50k_Coverage_tf=85_lr=adagrad5e4_max75_combo_loss_005_ep@46500_loss@0.pickle'
+'checkpoint_DM_CNN_50k_Coverage_tf=85_lr=adam5e5b25_SC0995_1xTrigram1xPerl-L_neg_ep@45000_loss@0.pickle',
+'checkpoint_DM_CNN_50k_Coverage_tf=85_lr=adam5e5b25_SC0995_2_5xTrigram1xPerl-L_neg_ep@45500_loss@0.pickle',
+'checkpoint_DM_CNN_50k_Coverage_tf=85_lr=adam5e5b25_SC0995_7_5xTrigram1xPerl-L_neg_ep@27000_loss@0.pickle',
 ]
 models_data = {k: models_data[k] for k in keys}
 

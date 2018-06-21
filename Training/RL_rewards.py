@@ -132,8 +132,12 @@ class TrigramNovelty:
             #ref_novelty = sum([1 for gram in refs_tri_grams if gram not in source_tri_grams])
             novel_n_grams = [gram for gram in hyps_tri_grams if gram in refs_tri_grams and gram not in source_tri_grams]
             reward_grams.append(novel_n_grams)
-            #print(novel_n_grams)
-
+            '''
+            if len(novel_n_grams) > 0:
+                print(summaries[i])
+                print(novel_n_grams)
+                print()
+            '''
             if len(refs_tri_grams) == 0: scores.append(0)
             else: scores.append(len(novel_n_grams)/ len(refs_tri_grams))
 
